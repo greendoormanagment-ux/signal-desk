@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Signal Desk V2</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0C1218">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#2FBF71;--amber:#E8A33D;--red:#E5484D;--blue:#8FB6DA;--bg:#0C1218;--bg2:#101922;--bg3:#111A22;--border:#1C2833;--border2:#253442;--text:#DCE4EA;--muted:#8A97A3;--dim:#5E6C79;--dimmer:#4A5763}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;padding:20px 16px 60px;max-width:740px;margin:0 auto;-webkit-font-smoothing:antialiased}
+h1{font-family:'Archivo',sans-serif;font-weight:900;font-stretch:75%;font-size:26px;letter-spacing:2px;line-height:1}
+.sub{font-size:10px;color:var(--dim);margin-top:4px;letter-spacing:.5px}
+.hd{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px;flex-wrap:wrap}
+.mark{font-size:22px;color:var(--green);letter-spacing:-2px;font-weight:900}
+/* setup */
+.setup-bar{font-size:10.5px;cursor:pointer;color:var(--dim);margin-bottom:12px;border:none;background:none;font-family:inherit;padding:0;letter-spacing:.5px}
+.setup-bar.ok{color:var(--green)}
+.setup-box{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;gap:10px;flex-direction:column}
+.setup-box.open{display:flex}
+.setup-box label{font-size:9.5px;color:var(--dim);letter-spacing:1px;margin-bottom:2px;display:block}
+.setup-stat{font-size:11px;margin-top:2px}
+.setup-stat.ok{color:var(--green)}.setup-stat.err{color:var(--red)}
+/* tabs */
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{flex:1;border:1px solid var(--border2);border-radius:8px;padding:9px 10px;cursor:pointer;background:var(--bg3);color:var(--dim);font-family:inherit;text-align:left;display:flex;flex-direction:column;gap:3px;transition:all .15s}
+.tab.act{border-color:var(--green);background:#12241B;color:var(--text)}
+.tab .tl{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:12px;letter-spacing:1.2px}
+.tab .ts{font-size:9px;opacity:.8}
+/* inputs */
+.row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+input,button{font-family:inherit}
+.inp{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:16px;font-weight:600;padding:12px 13px;min-width:90px}
+.inp.ticker{text-transform:uppercase;letter-spacing:2px;flex:1}
+.inp.sm{flex:0 1 130px;font-size:14px;letter-spacing:.3px}
+.inp.key{font-size:12px;letter-spacing:.3px;width:100%}
+.btn-go{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;letter-spacing:1.5px;font-size:13px;background:var(--green);color:#06130C;border:none;border-radius:6px;padding:0 22px;cursor:pointer;min-height:48px;transition:opacity .15s}
+.btn-go:disabled{opacity:.45}
+.btn-sm{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:11px;letter-spacing:1px;background:var(--green);color:#06130C;border:none;border-radius:6px;padding:8px 14px;cursor:pointer}
+/* loading */
+.loading{display:none;border:1px dashed var(--border2);border-radius:8px;padding:22px;text-align:center;margin-bottom:14px}
+.loading .ln{font-size:13px;color:var(--blue);animation:pulse 1.4s ease-in-out infinite}
+.loading .hint{font-size:10px;color:var(--dim);margin-top:8px}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+/* error */
+.errbox{display:none;border:1px solid #E5484D66;background:#E5484D0E;border-radius:8px;padding:13px 15px;font-size:12px;color:#F1A6A9;line-height:1.6;margin-bottom:12px}
+/* data confidence */
+.confidence{display:none;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;line-height:1.7;border:1px solid}
+.confidence.high{border-color:#2FBF7144;background:#2FBF710A;color:#7DD8A8}
+.confidence.med{border-color:#E8A33D44;background:#E8A33D0A;color:#E8C286}
+.confidence.low{border-color:#E5484D44;background:#E5484D0A;color:#F1A6A9}
+/* market banner */
+.mkt-banner{display:none;border-radius:7px;padding:9px 13px;margin-bottom:12px;font-size:11px;border:1px solid;align-items:center;gap:10px;flex-wrap:wrap}
+/* ticket */
+.ticket{display:none;background:var(--bg2);border-radius:10px;padding:20px;margin-bottom:12px}
+.ticket-top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.t-sym{font-family:'Archivo',sans-serif;font-weight:900;font-stretch:75%;font-size:42px;line-height:1;letter-spacing:1px}
+.t-co{font-size:11px;color:var(--muted);margin-top:4px}
+.t-right{text-align:right}
+.t-label{font-size:9px;color:var(--dim);letter-spacing:2px}
+.t-price{font-size:26px;font-weight:600;margin-top:2px}
+.t-src{font-size:9px;font-weight:700;letter-spacing:1px;margin-top:2px}
+.t-gain{font-size:12px;font-weight:600;margin-top:2px}
+.t-asof{font-size:9.5px;color:var(--dim);margin-top:3px}
+.stamp-row{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+.stamp{font-family:'Archivo',sans-serif;font-weight:900;font-stretch:75%;font-size:28px;letter-spacing:3px;border:3px solid;border-radius:6px;padding:5px 16px;transform:rotate(-2deg);display:inline-block}
+.stamp-word{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.score-pill{font-size:10.5px;background:var(--border);border-radius:20px;padding:3px 10px;color:var(--text)}
+/* score breakdown */
+.score-bar-wrap{margin-bottom:12px;display:none}
+.score-bar-title{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:11px;letter-spacing:3px;color:var(--dim);margin-bottom:10px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.score-name{font-size:10.5px;min-width:140px;color:var(--muted)}
+.score-track{flex:1;height:6px;background:var(--border);border-radius:3px;min-width:80px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;transition:width .4s}
+.score-num{font-size:10.5px;font-weight:600;min-width:42px;text-align:right}
+/* no man's land */
+.nml{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px}
+.nml-title{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:11px;letter-spacing:3px;color:var(--dim);margin-bottom:12px}
+.nml-ladder{position:relative;padding:8px 0}
+.nml-level{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:11.5px}
+.nml-tag{font-size:9.5px;font-weight:700;letter-spacing:1px;min-width:80px;padding:3px 8px;border-radius:4px;text-align:center}
+.nml-price{font-weight:600;font-size:14px}
+.nml-current{background:#E8A33D22;border:1px solid #E8A33D44;border-radius:6px;padding:8px 12px;margin:6px 0;font-size:11.5px;color:#E8C286;display:flex;align-items:center;gap:8px}
+.nml-divider{border:none;border-top:1px dashed var(--border2);margin:4px 0}
+/* action buttons */
+.act-row{display:none;gap:8px;margin-bottom:12px}
+.act-btn{flex:1;min-height:44px;border-radius:7px;cursor:pointer;font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:1.2px;font-size:11.5px;border:1px solid var(--border2);background:var(--bg3);color:var(--dim);transition:all .15s}
+/* panel */
+.panel{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 16px;margin-bottom:12px}
+.pt{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:11px;letter-spacing:3px;color:var(--dim);margin-bottom:11px}
+/* ladder rungs */
+.rung{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.rung-tag{font-size:9.5px;font-weight:600;letter-spacing:1px;border-radius:4px;padding:4px 9px;min-width:96px;text-align:center}
+.rung-price{font-size:14px;font-weight:600}
+.rung-note{font-size:10px;color:var(--dim);font-weight:400}
+/* checks */
+.chk{display:flex;gap:10px;padding:9px 0;align-items:baseline;flex-wrap:wrap;border-top:1px solid var(--border)}
+.chk:first-child{border-top:none}
+.chk-icon{font-size:13px;font-weight:700;width:15px;flex-shrink:0}
+.chk-name{font-size:11px;font-weight:600;min-width:150px}
+.chk-detail{font-size:11px;color:var(--muted);flex:1;line-height:1.55;min-width:160px}
+/* what changes */
+.change-list{list-style:none;padding:0}
+.change-list li{font-size:11.5px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border);display:flex;gap:8px;line-height:1.5}
+.change-list li:first-child{border-top:none}
+.change-list li::before{content:"→";color:var(--green);flex-shrink:0}
+/* log */
+.log-row{display:flex;gap:8px;padding:8px 0;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border);font-size:10.5px}
+.log-row:first-child{border-top:none}
+.log-badge{font-size:9px;font-weight:700;letter-spacing:1px;border-radius:4px;padding:3px 7px}
+/* eight week */
+.eight{margin-top:10px;font-size:11px;color:var(--amber);background:#E8A33D14;border:1px solid #E8A33D44;border-radius:6px;padding:9px 11px;line-height:1.5;display:none}
+/* disclaimer */
+.disc{font-size:9.5px;color:var(--dimmer);line-height:1.6;margin-top:20px;border-top:1px solid var(--border);padding-top:12px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="mark">▮▯</div>
+  <div>
+    <h1>SIGNAL DESK</h1>
+    <div class="sub">V2 · deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
+  </div>
+</div>
+
+<button class="setup-bar" id="setupBar">○ SETUP — tap to configure</button>
+<div class="setup-box" id="setupBox">
+  <div>
+    <label>ANTHROPIC API KEY (console.anthropic.com)</label>
+    <input class="inp key" id="aKey" placeholder="sk-ant-...">
+  </div>
+  <div>
+    <label>TWELVE DATA API KEY (twelvedata.com — free)</label>
+    <input class="inp key" id="tdKey" placeholder="paste key">
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="btn-sm" id="saveKeys">SAVE & TEST</button>
+    <span class="setup-stat" id="keyStat"></span>
+  </div>
+  <div style="font-size:10px;color:var(--dim);line-height:1.6">Keys stored only on this device. Never share your Anthropic key — it bills your account. Twelve Data is free (800 req/day). Each scan costs ~3¢.</div>
+</div>
+
+<div class="tabs">
+  <button class="tab act" data-m="entry"><span class="tl">ENTRY SCAN</span><span class="ts">thinking of buying</span></button>
+  <button class="tab" data-m="position"><span class="tl">POSITION REVIEW</span><span class="ts">already own it</span></button>
+  <button class="tab" data-m="log"><span class="tl">LOG</span><span class="ts" id="logCount">0 scans</span></button>
+</div>
+
+<div class="row" id="inputRow">
+  <input class="inp ticker" id="sym" placeholder="TICKER" maxlength="6">
+  <input class="inp sm" id="ep" placeholder="Entry $" inputmode="decimal" style="display:none">
+  <input class="inp sm" id="ed" placeholder="Date (opt)" style="display:none;font-size:12px">
+  <button class="btn-go" id="goBtn">ANALYZE</button>
+</div>
+
+<div class="loading" id="loading">
+  <div class="ln" id="loadLn">Fetching live data…</div>
+  <div class="hint">Live price + rule engine + AI explanation — about 20 seconds</div>
+</div>
+<div class="errbox" id="errbox"></div>
+
+<!-- data confidence -->
+<div class="confidence" id="confidence"></div>
+
+<!-- market banner -->
+<div class="mkt-banner" id="mktBanner"></div>
+
+<!-- ticket -->
+<div class="ticket" id="ticket">
+  <div class="ticket-top">
+    <div>
+      <div class="t-sym" id="tSym"></div>
+      <div class="t-co" id="tCo"></div>
+    </div>
+    <div class="t-right">
+      <div class="t-label">LAST</div>
+      <div class="t-price" id="tPrice"></div>
+      <div class="t-src" id="tSrc"></div>
+      <div class="t-gain" id="tGain" style="display:none"></div>
+      <div class="t-asof" id="tAsOf"></div>
+    </div>
+  </div>
+  <div class="stamp-row">
+    <div class="stamp" id="stamp"></div>
+    <div class="stamp-word"><span id="stampWord"></span><span class="score-pill" id="scorePill"></span></div>
+  </div>
+</div>
+
+<!-- score breakdown -->
+<div class="score-bar-wrap panel" id="scorePanel">
+  <div class="pt">SCORE BREAKDOWN</div>
+  <div id="scoreBars"></div>
+</div>
+
+<!-- no man's land -->
+<div class="nml" id="nml">
+  <div class="nml-title">PRICE POSITION</div>
+  <div id="nmlContent"></div>
+</div>
+
+<!-- action buttons -->
+<div class="act-row" id="actRow">
+  <button class="act-btn" data-a="Bought">I BOUGHT IT</button>
+  <button class="act-btn" data-a="Passed">I PASSED</button>
+</div>
+
+<!-- trade plan / exit ladder -->
+<div class="panel" id="planPanel">
+  <div class="pt" id="planTitle">TRADE PLAN</div>
+  <div id="planRungs"></div>
+  <div class="eight" id="eight"></div>
+</div>
+
+<!-- rule checks -->
+<div class="panel" id="chkPanel">
+  <div class="pt" id="chkTitle">RULE STACK</div>
+  <div id="chkRows"></div>
+</div>
+
+<!-- what changes the rating -->
+<div class="panel" id="changePanel">
+  <div class="pt">WHAT CHANGES THE RATING</div>
+  <ul class="change-list" id="changeList"></ul>
+</div>
+
+<!-- AI explanation -->
+<div class="panel" id="explPanel">
+  <div class="pt" id="explTitle">READ</div>
+  <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="explText"></div>
+</div>
+
+<!-- log -->
+<div id="logArea" style="display:none">
+  <div class="panel" style="display:block">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="pt" style="margin-bottom:0">SCAN HISTORY</div>
+      <button class="btn-sm" id="csvBtn" style="font-size:10px;padding:6px 12px">COPY CSV</button>
+    </div>
+    <div id="logRows"></div>
+  </div>
+</div>
+
+<div class="disc">Signal Desk V2 — deterministic rule engine based on O'Neil/IBD, Weinstein stage analysis, and chandelier trailing stops. Rules decide. Claude explains. Not financial advice — verify all levels on a real chart before acting. Past signals do not guarantee future results.</div>
+
+<script>
+"use strict";
+document.addEventListener("DOMContentLoaded", function() {
+
+// ═══════════════════════════════════════════
+// CONSTANTS & CONFIG
+// ═══════════════════════════════════════════
+const SCORE_WEIGHTS = {
+  market:      20,
+  trend:       15,
+  entry:       20,
+  momentum:    10,
+  volume:      10,
+  rs:          10,
+  fundamentals:15,
+};
+
+const META = {
+  BUY:          { label:"BUY",          color:"#2FBF71", word:"Setup is valid — rules passed" },
+  DONT_BUY:     { label:"DON'T BUY",   color:"#E8A33D", word:"Stand aside" },
+  SELL:         { label:"SELL",         color:"#E5484D", word:"Exit / avoid" },
+  HOLD:         { label:"HOLD",         color:"#2FBF71", word:"Trend intact — trail your stop" },
+  SCALE_OUT:    { label:"SCALE OUT",    color:"#8FB6DA", word:"Take partial profits" },
+  TIGHTEN_STOP: { label:"TIGHTEN STOP", color:"#E8A33D", word:"Warning — raise the stop" },
+  SELL_ALL:     { label:"SELL ALL",     color:"#E5484D", word:"Sell rule triggered — exit now" },
+};
+
+const LOAD_STEPS = [
+  "Fetching live price data…",
+  "Running the market gate…",
+  "Evaluating trend structure…",
+  "Checking entry setup…",
+  "Asking Claude to explain…",
+];
+
+// ═══════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set: (k,v) => { try { localStorage.setItem(k,v); } catch(e){} },
+};
+
+let scanLog = [];
+try { scanLog = JSON.parse(store.get("sd2-log") || "[]"); } catch(e){}
+const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300))); updateLogCount(); };
+const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans"; };
+updateLogCount();
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const fmt = n => typeof n==="number" ? n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : "—";
+const fmtPct = n => typeof n==="number" ? (n>=0?"+":"")+n.toFixed(1)+"%" : "—";
+const show = id => { const el=$(id); if(el) el.style.display="block"; };
+const hide = id => { const el=$(id); if(el) el.style.display="none"; };
+const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
+const hideAll = () => {
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","planPanel","chkPanel","changePanel","explPanel"].forEach(hide);
+  $("actRow").style.display="none";
+};
+
+// ═══════════════════════════════════════════
+// SETUP / KEY MANAGEMENT
+// ═══════════════════════════════════════════
+const refreshSetupBar = () => {
+  const a = store.get("sd2-akey"), t = store.get("sd2-tkey");
+  const bar = $("setupBar");
+  if (a && t) { bar.textContent="● LIVE DATA + AI ON — tap to update keys"; bar.className="setup-bar ok"; }
+  else if (a) { bar.textContent="◑ Anthropic key set — add Twelve Data for live prices"; bar.className="setup-bar"; }
+  else { bar.textContent="○ SETUP NEEDED — tap to add your API keys"; bar.className="setup-bar"; }
+};
+refreshSetupBar();
+$("aKey").value = store.get("sd2-akey")||"";
+$("tdKey").value = store.get("sd2-tkey")||"";
+
+$("setupBar").onclick = () => $("setupBox").classList.toggle("open");
+
+$("saveKeys").onclick = async () => {
+  const a = $("aKey").value.trim(), t = $("tdKey").value.trim();
+  const stat = $("keyStat");
+  stat.className="setup-stat"; stat.textContent="Testing…";
+  if (!a) { stat.className="setup-stat err"; stat.textContent="Anthropic key is required."; return; }
+  try {
+    const tests = [];
+    tests.push(
+      fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":a,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:5,messages:[{role:"user",content:"hi"}]})
+      }).then(r=>{ if(!r.ok) return r.json().then(j=>{throw new Error("Anthropic: "+(j?.error?.message||r.status))}); })
+    );
+    if (t) tests.push(
+      fetch(`https://api.twelvedata.com/price?symbol=AAPL&apikey=${t}`)
+        .then(r=>r.json())
+        .then(j=>{ if(!j?.price) throw new Error("Twelve Data key rejected: "+(j?.message||"check it")); })
+    );
+    await Promise.all(tests);
+    store.set("sd2-akey", a);
+    if (t) store.set("sd2-tkey", t);
+    stat.className="setup-stat ok";
+    stat.textContent = "✓ Verified & saved" + (t?" — live data on":"");
+    refreshSetupBar();
+    setTimeout(()=>$("setupBox").classList.remove("open"), 1600);
+  } catch(e) {
+    stat.className="setup-stat err"; stat.textContent="✕ "+e.message;
+  }
+};
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+let mode = "entry";
+document.querySelectorAll(".tab").forEach(b => {
+  b.onclick = () => {
+    mode = b.dataset.m;
+    document.querySelectorAll(".tab").forEach(x => x.className="tab"+(x===b?" act":""));
+    $("inputRow").style.display = mode==="log"?"none":"flex";
+    $("ep").style.display = mode==="position"?"block":"none";
+    $("ed").style.display = mode==="position"?"block":"none";
+    document.getElementById("logArea").style.display = mode==="log"?"block":"none";
+    if (mode==="log") { renderLog(); hideAll(); }
+    else { document.getElementById("logArea").style.display="none"; }
+  };
+});
+
+// ═══════════════════════════════════════════
+// LIVE DATA FETCH
+// ═══════════════════════════════════════════
+const fetchLiveData = async (sym) => {
+  const tdKey = store.get("sd2-tkey");
+  if (!tdKey) return null;
+  try {
+    const [qRes, s50Res, s200Res, rsiRes, atrRes] = await Promise.all([
+      fetch(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${tdKey}`).then(r=>r.json()),
+      fetch(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=50&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
+      fetch(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=200&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
+      fetch(`https://api.twelvedata.com/rsi?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
+      fetch(`https://api.twelvedata.com/atr?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
+    ]);
+    if (!qRes?.close) return null;
+    const val = (o,f) => o?.values?.[0]?.[f] ? parseFloat(o.values[0][f]) : null;
+    return {
+      price:     parseFloat(qRes.close),
+      prevClose: parseFloat(qRes.previous_close||0),
+      high52:    parseFloat(qRes.fifty_two_week?.high||0),
+      low52:     parseFloat(qRes.fifty_two_week?.low||0),
+      volume:    parseInt(qRes.volume||0),
+      avgVolume: parseInt(qRes.average_volume||0),
+      name:      qRes.name || sym,
+      exchange:  qRes.exchange || "",
+      marketState: qRes.is_market_open ? "REGULAR" : "CLOSED",
+      datetime:  qRes.datetime || new Date().toDateString(),
+      sma50:     val(s50Res,"sma"),
+      sma200:    val(s200Res,"sma"),
+      rsi:       val(rsiRes,"rsi"),
+      atr:       val(atrRes,"atr"),
+      source:    "Twelve Data",
+      freshness: "real-time",
+    };
+  } catch(e) { return null; }
+};
+
+// ═══════════════════════════════════════════
+// DATA CONFIDENCE
+// ═══════════════════════════════════════════
+const getConfidence = (d) => {
+  if (!d) return { level:"low", label:"🔴 LOW", reason:"Price source unavailable — analysis uses web search estimates only." };
+  const missing = [];
+  if (!d.sma50)  missing.push("50-day MA");
+  if (!d.sma200) missing.push("200-day MA");
+  if (!d.rsi)    missing.push("RSI");
+  if (!d.atr)    missing.push("ATR");
+  if (missing.length===0) return { level:"high", label:"🟢 HIGH", reason:`Price: real-time · All indicators: exact · Source: ${d.source}` };
+  if (missing.length<=2)  return { level:"med",  label:"🟡 MEDIUM", reason:`Price: real-time · Missing: ${missing.join(", ")} · Source: ${d.source}` };
+  return { level:"low", label:"🔴 LOW", reason:`Several indicators unavailable · Source: ${d.source}` };
+};
+
+// ═══════════════════════════════════════════
+// DETERMINISTIC RULE ENGINE
+// ═══════════════════════════════════════════
+const runRuleEngine = (d, marketData, mode, entryPrice) => {
+  // marketData comes from Claude's web search — market condition only
+  // d = live price data from Twelve Data
+  const result = { checks:{}, setupType:"NONE", entryZone:null, pivot:null, stopLoss:null, noMansLand:false };
+
+  if (mode === "entry") {
+    // GATE 0: Market
+    const mkt = marketData?.market || "UNKNOWN";
+    result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt };
+
+    // GATE 1: Trend (deterministic if we have MAs)
+    if (d?.sma50 && d?.sma200) {
+      const abv50  = d.price > d.sma50;
+      const abv200 = d.price > d.sma200;
+      const ma50rising = d.sma50 > d.sma200;
+      const pass = abv50 && abv200 && ma50rising;
+      result.checks.trend = { score: pass?SCORE_WEIGHTS.trend:abv200?Math.round(SCORE_WEIGHTS.trend*0.4):0, status:pass?"pass":abv200?"neutral":"fail", detail:`Price $${fmt(d.price)} vs 50DMA $${fmt(d.sma50)} vs 200DMA $${fmt(d.sma200)}` };
+    } else {
+      result.checks.trend = { score:Math.round(SCORE_WEIGHTS.trend*0.5), status:"neutral", detail:"MAs not available — using web search estimate" };
+    }
+
+    // GATE 2: Entry type (deterministic if we have 50DMA)
+    if (d?.sma50) {
+      const pctAbove50 = ((d.price - d.sma50) / d.sma50) * 100;
+      const nearPullback = pctAbove50 >= -3 && pctAbove50 <= 3;
+      const pivot = d.high52; // use 52wk high as pivot proxy
+      const pctBelowPivot = pivot ? ((pivot - d.price) / pivot) * 100 : 999;
+      const atBreakout = pivot && pctBelowPivot <= 5 && pctBelowPivot >= -0.5;
+      const extended = pivot && pctBelowPivot < -5;
+      const noMansLand = !nearPullback && !atBreakout && !extended && d.price > d.sma50;
+
+      if (nearPullback) {
+        result.setupType = "PULLBACK";
+        result.entryZone = { low: d.sma50 * 0.97, high: d.sma50 * 1.03 };
+        result.stopLoss  = d.sma50 * 0.93;
+        result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Pullback to 50DMA zone ($${fmt(d.sma50 * 0.97)}–$${fmt(d.sma50 * 1.03)})` };
+      } else if (atBreakout) {
+        result.setupType = "BREAKOUT";
+        result.pivot     = pivot;
+        result.entryZone = { low: pivot, high: pivot * 1.05 };
+        result.stopLoss  = pivot * 0.93;
+        result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Breakout of 52wk high pivot $${fmt(pivot)}` };
+      } else if (extended) {
+        result.setupType = "EXTENDED";
+        result.checks.entry = { score:0, status:"fail", detail:`Extended ${Math.abs(pctBelowPivot).toFixed(1)}% past pivot — do not chase` };
+      } else if (noMansLand) {
+        result.setupType = "NONE";
+        result.noMansLand = true;
+        result.pullbackTarget = d.sma50;
+        result.breakoutTarget = pivot;
+        result.checks.entry = { score:0, status:"fail", detail:`No-man's land: above 50DMA but below pivot $${fmt(pivot)}` };
+      } else {
+        result.checks.entry = { score:0, status:"fail", detail:"Below 50DMA — not a valid entry" };
+      }
+    } else {
+      result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"neutral", detail:"Entry type determined by web search estimate" };
+    }
+
+    // GATE 3: Momentum (RSI)
+    if (d?.rsi) {
+      const rsiOk = d.rsi >= 40 && d.rsi <= 75;
+      const rsiWarm = d.rsi > 75 && d.rsi <= 80;
+      result.checks.momentum = { score: rsiOk?SCORE_WEIGHTS.momentum:rsiWarm?Math.round(SCORE_WEIGHTS.momentum*0.5):d.rsi<40?0:0, status:rsiOk?"pass":rsiWarm?"neutral":"fail", detail:`RSI(14): ${d.rsi.toFixed(1)}` };
+    } else {
+      result.checks.momentum = { score:Math.round(SCORE_WEIGHTS.momentum*0.5), status:"neutral", detail:"RSI from web search estimate" };
+    }
+
+    // GATE 4: Volume
+    if (d?.volume && d?.avgVolume && d.avgVolume > 0) {
+      const volRatio = d.volume / d.avgVolume;
+      const pullbackOk = result.setupType==="PULLBACK" && volRatio < 1.0;
+      const breakoutOk = result.setupType==="BREAKOUT" && volRatio >= 1.2;
+      const pass = pullbackOk || breakoutOk || result.setupType==="NONE";
+      result.checks.volume = { score:pass?SCORE_WEIGHTS.volume:Math.round(SCORE_WEIGHTS.volume*0.3), status:pass?"pass":"neutral", detail:`Volume ${(volRatio*100).toFixed(0)}% of average` };
+    } else {
+      result.checks.volume = { score:Math.round(SCORE_WEIGHTS.volume*0.5), status:"neutral", detail:"Volume from web search estimate" };
+    }
+
+    // RS and Fundamentals come from Claude (web search)
+    result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail:"Awaiting web data" };
+    result.checks.fundamentals = marketData?.fundamentalsCheck || { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:"Awaiting web data" };
+
+    // HARD GATES — these override everything
+    let rating = "BUY";
+    if (result.checks.market.status==="fail")        rating = "DONT_BUY";
+    else if (result.checks.trend.status==="fail")    rating = "DONT_BUY";
+    else if (result.checks.entry.status==="fail")    rating = "DONT_BUY";
+    else if (result.checks.fundamentals.status==="fail") rating = "DONT_BUY";
+    else if (marketData?.marketStatus==="CORRECTION") rating = "DONT_BUY";
+
+    // SELL signal
+    if (d?.sma200 && d.price < d.sma200 && d?.sma50 && d.sma50 < d.sma200) rating = "SELL";
+
+    result.rating = rating;
+
+    // Total score
+    result.score = Object.values(result.checks).reduce((s,c)=>s+(c.score||0),0);
+
+  } else {
+    // POSITION REVIEW — deterministic
+    const ep = parseFloat(entryPrice);
+    const price = d?.price || 0;
+    const gainPct = ((price - ep) / ep) * 100;
+    result.gainPct = gainPct;
+
+    // Loss cut — absolute
+    if (gainPct <= -7.5) {
+      result.status = "SELL_ALL";
+      result.sellReason = "7-8% loss rule triggered";
+    }
+    // Profit target
+    else if (gainPct >= 20) {
+      result.status = "SCALE_OUT";
+    }
+    // Trend deterioration
+    else if (d?.sma50 && price < d.sma50 * 0.98) {
+      result.status = "TIGHTEN_STOP";
+    }
+    else {
+      result.status = "HOLD";
+    }
+
+    // Chandelier stop
+    if (d?.atr && d?.high52) {
+      result.chandelierStop = d.high52 - (3 * d.atr);
+    }
+    result.hardStop = ep * 0.92;
+    result.sma50    = d?.sma50 || null;
+    result.score    = 50; // position review score is less meaningful
+  }
+
+  return result;
+};
+
+// ═══════════════════════════════════════════
+// CLAUDE — EXPLAIN ONLY
+// ═══════════════════════════════════════════
+const claudeExplain = async (sym, d, ruleResult, mode, entryPrice, entryDate) => {
+  const aKey = store.get("sd2-akey");
+  if (!aKey) throw new Error("No Anthropic API key — add it in Setup.");
+
+  const dataBlock = d ? `
+LIVE DATA (Twelve Data — exact):
+Price: $${fmt(d.price)} | Prev close: $${fmt(d.prevClose)}
+52wk high: $${fmt(d.high52)} | 52wk low: $${fmt(d.low52)}
+50-day SMA: ${d.sma50?'$'+fmt(d.sma50):'unavailable'}
+200-day SMA: ${d.sma200?'$'+fmt(d.sma200):'unavailable'}
+RSI(14): ${d.rsi?d.rsi.toFixed(1):'unavailable'}
+ATR(14): ${d.atr?'$'+fmt(d.atr):'unavailable'}
+Volume: ${d.volume?.toLocaleString()||'n/a'} vs avg ${d.avgVolume?.toLocaleString()||'n/a'}
+Market state: ${d.marketState||'unknown'}` : "Live price data unavailable — use web search for all figures.";
+
+  const ruleBlock = mode==="entry" ? `
+RULE ENGINE RESULT (deterministic — DO NOT change this):
+Rating: ${ruleResult.rating}
+Score: ${ruleResult.score}/100
+Setup type: ${ruleResult.setupType}
+No-man's land: ${ruleResult.noMansLand}
+${ruleResult.entryZone?`Buy zone: $${fmt(ruleResult.entryZone.low)}–$${fmt(ruleResult.entryZone.high)}`:'No valid entry zone'}
+${ruleResult.stopLoss?`Stop loss: $${fmt(ruleResult.stopLoss)}`:''}
+Hard gates failed: ${Object.entries(ruleResult.checks).filter(([,v])=>v.status==="fail").map(([k])=>k).join(", ")||"none"}` : `
+RULE ENGINE RESULT:
+Status: ${ruleResult.status}
+Gain: ${ruleResult.gainPct?.toFixed(1)||'?'}%
+Chandelier stop: ${ruleResult.chandelierStop?'$'+fmt(ruleResult.chandelierStop):'calculating'}
+Hard stop: $${fmt(ruleResult.hardStop)}`;
+
+  const systemPrompt = mode==="entry" ? `You are Signal Desk's explanation engine. The rule engine has already made the decision — your ONLY job is to:
+1. Use web search to find: S&P 500 / Nasdaq current condition, RS vs S&P over 3-6 months, latest quarterly EPS and revenue growth, any recent news.
+2. Return a JSON object filling in the fields the rule engine couldn't compute from price data alone.
+3. Explain the decision in plain English.
+DO NOT change the rating, score, or any rule-engine output. The rules decide. You explain.
+
+Respond ONLY with raw JSON (no fences):
+{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION","marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: why this rating, what the chart looks like, what to watch","asOf":"data freshness"}`
+  : `You are Signal Desk's explanation engine for position management. Use web search to find current chart condition, any news, analyst sentiment. Explain the position status in plain English.
+Respond ONLY with raw JSON (no fences):
+{"explanation":"3-4 sentences: current situation, what the exit levels mean, what to watch","whatChanges":["trigger 1","trigger 2","trigger 3"],"asOf":"freshness"}`;
+
+  const userMsg = `${dataBlock}\n${ruleBlock}\n\nSymbol: ${sym}${mode==="position"?`\nEntry: $${entryPrice}${entryDate?` on ${entryDate}`:""}` : ""}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-5",max_tokens:1200,system:systemPrompt,messages:[{role:"user",content:userMsg}],tools:[{type:"web_search_20250305",name:"web_search"}]})
+  });
+  if (!res.ok) {
+    const eb = await res.json().catch(()=>({}));
+    throw new Error("API " + res.status + ": " + (eb?.error?.message||res.statusText));
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message||"API error");
+  const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  if (!text.trim()) throw new Error("Empty response (stop: "+data.stop_reason+"). Try again.");
+  const clean = text.replace(/```json\n?|```\n?/g,"").trim();
+  const s0 = clean.indexOf("{"), e0 = clean.lastIndexOf("}");
+  if (s0===-1) throw new Error("No JSON in response: "+clean.slice(0,120));
+  try { return JSON.parse(clean.slice(s0,e0+1)); }
+  catch(_) {
+    // repair
+    const s = clean.slice(s0);
+    for (let cut=s.length;cut>1;cut--) {
+      const ch=s[cut-1]; if(ch!=="}"&&ch!=="]"&&ch!=='"') continue;
+      const cand=s.slice(0,cut).replace(/,\s*$/,"");
+      try { return JSON.parse(cand+("}").repeat((cand.match(/\{/g)||[]).length-(cand.match(/\}/g)||[]).length)); } catch(_) {}
+    }
+    throw new Error("Couldn't parse AI response.");
+  }
+};
+
+// ═══════════════════════════════════════════
+// MAIN ANALYZE FLOW
+// ═══════════════════════════════════════════
+let loadTick;
+const startLoad = (lines) => {
+  let i=0; $("loadLn").textContent=lines[0]; show("loading");
+  loadTick = setInterval(()=>{ i=Math.min(i+1,lines.length-1); $("loadLn").textContent=lines[i]; },4000);
+};
+const stopLoad = () => { clearInterval(loadTick); hide("loading"); };
+
+document.querySelectorAll(".act-btn").forEach(b => {
+  b.onclick = () => {
+    if (!scanLog.length) return;
+    scanLog[0].action = b.dataset.a;
+    saveLog();
+    document.querySelectorAll(".act-btn").forEach(x => {
+      const on = scanLog[0].action===x.dataset.a;
+      const col = x.dataset.a==="Bought" ? "#2FBF71" : "#8A97A3";
+      x.style.borderColor = on?col:"var(--border2)";
+      x.style.background  = on?col+"22":"var(--bg3)";
+      x.style.color       = on?col:"var(--dim)";
+      x.textContent       = (on?"✓ ":"") + (x.dataset.a==="Bought"?"I BOUGHT IT":"I PASSED");
+    });
+  };
+});
+
+$("sym").addEventListener("keydown", e=>{ if(e.key==="Enter") $("goBtn").click(); });
+
+$("goBtn").onclick = async () => {
+  const sym = $("sym").value.trim().toUpperCase();
+  if (!sym) return;
+  if (!store.get("sd2-akey")) {
+    $("errbox").textContent = "Add your Anthropic API key first — tap the setup bar at the top.";
+    show("errbox"); $("setupBox").classList.add("open"); return;
+  }
+  if (mode==="position" && !parseFloat($("ep").value)) {
+    $("errbox").textContent = "Enter your entry price."; show("errbox"); return;
+  }
+  hide("errbox"); hideAll(); $("goBtn").disabled=true;
+  startLoad(LOAD_STEPS);
+
+  try {
+    // 1. fetch live data
+    const d = await fetchLiveData(sym);
+    const conf = getConfidence(d);
+    $("confidence").className = "confidence "+conf.level;
+    $("confidence").innerHTML = `<strong>DATA CONFIDENCE: ${conf.label}</strong><br>${conf.reason}`;
+    show("confidence");
+
+    // 2. run rule engine (partial — RS + fundamentals filled by Claude)
+    const ruleResult = runRuleEngine(d, null, mode, $("ep").value);
+
+    // 3. Claude explains + fills RS/fundamentals
+    const ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value);
+
+    // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
+    let finalRule = ruleResult;
+    if (mode==="entry") {
+      finalRule = runRuleEngine(d, ai, mode, $("ep").value);
+    }
+
+    // 5. render everything
+    render(sym, d, finalRule, ai, mode);
+
+    // 6. log
+    const entry = {
+      ts: new Date().toISOString().slice(0,16).replace("T"," "),
+      mode: mode==="position"?"Position":"Entry",
+      symbol: sym,
+      verdict: mode==="position"?finalRule.status:finalRule.rating,
+      score: finalRule.score,
+      price: d?d.price.toFixed(2):"n/a",
+      setup: finalRule.setupType||"",
+      market: ai?.marketStatus||"",
+      entryPrice: $("ep").value||"",
+      gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
+      action: "",
+    };
+    scanLog.unshift(entry); saveLog();
+
+  } catch(e) {
+    $("errbox").textContent = "Error: "+e.message+" — try again in a few seconds.";
+    show("errbox");
+  } finally {
+    stopLoad(); $("goBtn").disabled=false;
+  }
+};
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+const render = (sym, d, rule, ai, mode) => {
+  const key  = mode==="position" ? rule.status : rule.rating;
+  const meta = META[key] || META.DONT_BUY;
+
+  // market banner
+  if (ai?.marketStatus) {
+    const mc = ai.marketStatus==="UPTREND"
+      ? ["#2FBF7144","#2FBF710F","#7DD8A8"]
+      : ai.marketStatus==="PRESSURE"
+      ? ["#E8A33D44","#E8A33D0F","#E8C286"]
+      : ["#E5484D44","#E5484D0F","#F1A6A9"];
+    const mb = $("mktBanner");
+    mb.style.cssText = `border-color:${mc[0]};background:${mc[1]};color:${mc[2]}`;
+    mb.innerHTML = `<strong style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:2px;font-size:10.5px">MARKET: ${ai.marketStatus}</strong><span style="opacity:.85">${ai.marketNote||""}</span>`;
+    showFlex("mktBanner");
+  }
+
+  // ticket
+  $("tSym").textContent = sym;
+  $("tCo").textContent  = d?.name || "";
+  $("tPrice").textContent = d ? "$"+fmt(d.price) : "—";
+  const src = $("tSrc");
+  if (d) { src.textContent="● LIVE · TWELVE DATA"; src.style.color="var(--green)"; }
+  else   { src.textContent="⚠ WEB DATA — verify price"; src.style.color="var(--amber)"; }
+  $("tAsOf").textContent = ai?.asOf||"";
+  if (mode==="position" && typeof rule.gainPct==="number") {
+    const g=$("tGain"); g.style.display="block";
+    g.textContent=fmtPct(rule.gainPct)+" vs entry $"+fmt(parseFloat($("ep").value));
+    g.style.color=rule.gainPct>=0?"var(--green)":"var(--red)";
+  }
+  $("stamp").textContent=$("stamp").textContent=meta.label;
+  $("stamp").style.color=meta.color; $("stamp").style.borderColor=meta.color;
+  $("ticket").style.boxShadow=`0 0 0 1px ${meta.color}55,0 0 44px ${meta.color}18`;
+  $("stampWord").textContent=meta.word;
+  $("scorePill").textContent=rule.score+"/100";
+  show("ticket");
+
+  // score breakdown
+  if (mode==="entry") {
+    const weights = SCORE_WEIGHTS;
+    const sb = $("scoreBars"); sb.innerHTML="";
+    const cats = [
+      ["market","Market Gate",weights.market],
+      ["trend","Trend Structure",weights.trend],
+      ["entry","Entry Setup",weights.entry],
+      ["momentum","Momentum (RSI)",weights.momentum],
+      ["volume","Volume",weights.volume],
+      ["rs","Relative Strength",weights.rs],
+      ["fundamentals","Fundamentals",weights.fundamentals],
+    ];
+    cats.forEach(([k,label,maxW])=>{
+      const chk = rule.checks[k];
+      if (!chk) return;
+      const pct = maxW>0 ? (chk.score/maxW)*100 : 0;
+      const col = chk.status==="pass"?"var(--green)":chk.status==="neutral"?"var(--amber)":"var(--red)";
+      sb.innerHTML += `<div class="score-row">
+        <span class="score-name">${label}</span>
+        <div class="score-track"><div class="score-fill" style="width:${pct}%;background:${col}"></div></div>
+        <span class="score-num" style="color:${col}">${chk.score}/${maxW}</span>
+      </div>`;
+    });
+    show("scorePanel"); $("scorePanel").style.display="block";
+  }
+
+  // no man's land visualizer
+  if (rule.noMansLand && rule.pullbackTarget && rule.breakoutTarget) {
+    const nc = $("nmlContent");
+    nc.innerHTML = `
+      <div class="nml-level">
+        <span class="nml-tag" style="background:#E5484D22;color:#E5484D">BREAKOUT</span>
+        <span class="nml-price">$${fmt(rule.breakoutTarget)}</span>
+        <span style="font-size:10px;color:var(--dim)">(buy on heavy volume)</span>
+      </div>
+      <hr class="nml-divider">
+      <div class="nml-current">
+        <span>⬤</span>
+        <span>CURRENT PRICE: <strong>$${fmt(d?.price)}</strong> — NO VALID ENTRY</span>
+      </div>
+      <hr class="nml-divider">
+      <div class="nml-level">
+        <span class="nml-tag" style="background:#2FBF7122;color:var(--green)">PULLBACK</span>
+        <span class="nml-price">$${fmt(rule.pullbackTarget * 0.97)}–$${fmt(rule.pullbackTarget * 1.03)}</span>
+        <span style="font-size:10px;color:var(--dim)">(buy on quiet volume)</span>
+      </div>`;
+    show("nml");
+  }
+
+  // action buttons
+  if (mode==="entry") {
+    document.querySelectorAll(".act-btn").forEach(x=>{x.style.borderColor="var(--border2)";x.style.background="var(--bg3)";x.style.color="var(--dim)";x.textContent=x.dataset.a==="Bought"?"I BOUGHT IT":"I PASSED";});
+    $("actRow").style.display="flex";
+  }
+
+  // trade plan / exit ladder
+  const rungs=[];
+  if (mode==="entry") {
+    if (rule.entryZone) rungs.push(["BUY ZONE","#2FBF7122","var(--green)","$"+fmt(rule.entryZone.low)+" — $"+fmt(rule.entryZone.high),rule.setupType==="PULLBACK"?"(50DMA pullback zone)":"(base breakout zone)"]);
+    if (rule.pivot)     rungs.push(["PIVOT","#5B8DB822","var(--blue)","$"+fmt(rule.pivot),"(52-week high)"]);
+    if (rule.stopLoss)  rungs.push(["STOP LOSS","#E5484D22","var(--red)","$"+fmt(rule.stopLoss),"(7-8% rule — place immediately on fill)"]);
+    $("planTitle").textContent="TRADE PLAN";
+  } else {
+    if (rule.chandelierStop) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),"(high − 3×ATR)"]);
+    if (d?.sma50)            rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
+    if (rule.hardStop)       rungs.push(["HARD STOP","#E5484D22","var(--red)","$"+fmt(rule.hardStop),"(7-8% from entry — no exceptions)"]);
+    $("planTitle").textContent="EXIT LADDER";
+  }
+  if (rungs.length) {
+    const pr=$("planRungs"); pr.innerHTML="";
+    rungs.forEach(([tag,bg,col,val,note])=>{
+      pr.innerHTML+=`<div class="rung"><span class="rung-tag" style="background:${bg};color:${col}">${tag}</span><span class="rung-price">${val}</span><span class="rung-note">${note}</span></div>`;
+    });
+    show("planPanel");
+  }
+
+  // rule checks
+  if (mode==="entry") {
+    const cr=$("chkRows"); cr.innerHTML="";
+    const icons={pass:"✓",fail:"✕",neutral:"–"};
+    const cols={pass:"var(--green)",fail:"var(--red)",neutral:"var(--amber)"};
+    const labels={market:"Market Gate",trend:"Trend Structure",entry:"Entry Setup",momentum:"Momentum (RSI)",volume:"Volume",rs:"Relative Strength",fundamentals:"Fundamentals"};
+    Object.entries(rule.checks).forEach(([k,chk])=>{
+      cr.innerHTML+=`<div class="chk"><span class="chk-icon" style="color:${cols[chk.status]||'var(--muted)'}">${icons[chk.status]||'–'}</span><span class="chk-name">${labels[k]||k}</span><span class="chk-detail">${chk.detail}</span></div>`;
+    });
+    $("chkTitle").textContent="RULE STACK";
+    show("chkPanel");
+  }
+
+  // what changes the rating
+  const changes = ai?.whatChanges;
+  if (changes?.length) {
+    const cl=$("changeList"); cl.innerHTML="";
+    changes.forEach(c=>{ cl.innerHTML+=`<li>${c}</li>`; });
+    show("changePanel");
+  }
+
+  // AI explanation
+  $("explTitle").textContent = mode==="position"?"ACTION PLAN":"WHY THIS RATING";
+  $("explText").textContent  = ai?.explanation || "";
+  show("explPanel");
+};
+
+// ═══════════════════════════════════════════
+// LOG
+// ═══════════════════════════════════════════
+const renderLog = () => {
+  const el=$("logRows"); el.innerHTML="";
+  if (!scanLog.length) { el.innerHTML='<div style="font-size:12px;color:var(--dim);padding:8px 0">No scans yet. Every analysis is saved here automatically.</div>'; return; }
+  scanLog.forEach(h=>{
+    const m=META[h.verdict]||META.DONT_BUY;
+    const act=h.action?`<span class="log-badge" style="background:${h.action==="Bought"?"#2FBF7122":"#5E6C7922"};color:${h.action==="Bought"?"var(--green)":"var(--muted)"}">${h.action.toUpperCase()}</span>`:"";
+    el.innerHTML+=`<div class="log-row">
+      <span style="font-family:'Archivo',sans-serif;font-weight:900;font-size:13px;min-width:50px">${h.symbol}</span>
+      <span style="font-weight:700;letter-spacing:.8px;color:${m.color};min-width:80px;font-size:10px">${m.label}</span>
+      <span style="color:var(--muted);min-width:54px">$${h.price}</span>
+      ${act}
+      <span style="color:var(--dim);flex:1;font-size:9.5px">${h.mode}${h.setup?" · "+h.setup:""}${h.market?" · "+h.market:""}${h.gainPct?" · "+h.gainPct+"% vs entry":""}</span>
+      <span style="color:var(--dimmer);font-size:9px">${h.ts}</span>
+    </div>`;
+  });
+};
+
+$("csvBtn").onclick = () => {
+  const escCSV = v => typeof v==="string"&&(v.includes(",")||v.includes('"'))? '"'+v.replace(/"/g,'""')+'"' : (v||"");
+  const head="Date,Mode,Ticker,Verdict,Score,Price,Setup,Market,EntryPrice,GainPct,Action";
+  const rows=scanLog.map(h=>[h.ts,h.mode,h.symbol,h.verdict,h.score,h.price,h.setup,h.market,h.entryPrice,h.gainPct,h.action||""].map(escCSV).join(","));
+  navigator.clipboard.writeText([head,...rows].join("\n"))
+    .then(()=>{ $("csvBtn").textContent="COPIED ✓"; setTimeout(()=>$("csvBtn").textContent="COPY CSV",2000); })
+    .catch(()=>alert("Couldn't copy — try a different browser."));
+};
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
