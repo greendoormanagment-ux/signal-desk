@@ -381,14 +381,15 @@ const fetchLiveData = async (sym) => {
   const tdKey = store.get("sd2-tkey");
   if (!tdKey) return null;
   try {
+    const get = u => fetch(u).then(r=>r.json()).catch(()=>null);
     const [qRes, s50Res, s200Res, rsiRes, atrRes] = await Promise.all([
-      fetch(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${tdKey}`).then(r=>r.json()),
-      fetch(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=50&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
-      fetch(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=200&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
-      fetch(`https://api.twelvedata.com/rsi?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
-      fetch(`https://api.twelvedata.com/atr?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`).then(r=>r.json()),
+      get(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${tdKey}`),
+      get(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=50&outputsize=1&apikey=${tdKey}`),
+      get(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=200&outputsize=1&apikey=${tdKey}`),
+      get(`https://api.twelvedata.com/rsi?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`),
+      get(`https://api.twelvedata.com/atr?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`),
     ]);
-    if (!qRes?.close) return null;
+    if (!qRes?.close) { window.__tdErr = qRes?.message || "no quote returned"; return null; }
     const val = (o,f) => o?.values?.[0]?.[f] ? parseFloat(o.values[0][f]) : null;
     return {
       price:     parseFloat(qRes.close),
@@ -415,7 +416,7 @@ const fetchLiveData = async (sym) => {
 // DATA CONFIDENCE
 // ═══════════════════════════════════════════
 const getConfidence = (d) => {
-  if (!d) return { level:"low", label:"🔴 LOW", reason:"Price source unavailable — analysis uses web search estimates only." };
+  if (!d) return { level:"low", label:"🔴 LOW", reason:"Price source unavailable"+(window.__tdErr?" ("+window.__tdErr+")":(localStorage.getItem("sd2-tkey")?"":" — no Twelve Data key saved; tap Setup"))+" — analysis uses web search estimates only." };
   const missing = [];
   if (!d.sma50)  missing.push("50-day MA");
   if (!d.sma200) missing.push("200-day MA");
@@ -610,17 +611,25 @@ Respond ONLY with raw JSON (no fences):
 
   const userMsg = `${dataBlock}\n${ruleBlock}\n\nSymbol: ${sym}${mode==="position"?`\nEntry: $${entryPrice}${entryDate?` on ${entryDate}`:""}` : ""}`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:1200,system:systemPrompt,messages:[{role:"user",content:userMsg}],tools:[{type:"web_search_20250305",name:"web_search"}]})
-  });
-  if (!res.ok) {
-    const eb = await res.json().catch(()=>({}));
-    throw new Error("API " + res.status + ": " + (eb?.error?.message||res.statusText));
+  const msgs = [{role:"user",content:userMsg}];
+  let data, allContent = [];
+  for (let turn=0; turn<4; turn++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:8000,system:systemPrompt,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}]})
+    });
+    if (!res.ok) {
+      const eb = await res.json().catch(()=>({}));
+      throw new Error("API " + res.status + ": " + (eb?.error?.message||res.statusText));
+    }
+    data = await res.json();
+    if (data.error) throw new Error(data.error.message||"API error");
+    allContent = allContent.concat(data.content||[]);
+    if (data.stop_reason !== "pause_turn") break;
+    msgs.push({role:"assistant",content:data.content});
   }
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message||"API error");
+  data = {...data, content: allContent.filter(b=>b.type!=="text").concat((data.content||[]).filter(b=>b.type==="text"))};
   const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
   if (!text.trim()) throw new Error("Empty response (stop: "+data.stop_reason+"). Try again.");
   const clean = text.replace(/```json\n?|```\n?/g,"").trim();
