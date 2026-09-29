@@ -267,6 +267,7 @@ const SCORE_WEIGHTS = {
 const META = {
   BUY:          { label:"BUY",          color:"#2FBF71", word:"Setup is valid — rules passed" },
   DONT_BUY:     { label:"DON'T BUY",   color:"#E8A33D", word:"Stand aside" },
+  WATCH:        { label:"WATCH",        color:"#8FB6DA", word:"Near pivot — set an alert, buy only on a volume breakout" },
   SELL:         { label:"SELL",         color:"#E5484D", word:"Exit / avoid" },
   HOLD:         { label:"HOLD",         color:"#2FBF71", word:"Trend intact — trail your stop" },
   SCALE_OUT:    { label:"SCALE OUT",    color:"#8FB6DA", word:"Take partial profits" },
@@ -382,34 +383,66 @@ const fetchLiveData = async (sym) => {
   if (!tdKey) return null;
   try {
     const get = u => fetch(u).then(r=>r.json()).catch(()=>null);
-    const [qRes, s50Res, s200Res, rsiRes, atrRes] = await Promise.all([
+    // 2 API credits per scan: quote + 1 year of daily bars. Indicators are computed locally.
+    const [qRes, tsRes] = await Promise.all([
       get(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${tdKey}`),
-      get(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=50&outputsize=1&apikey=${tdKey}`),
-      get(`https://api.twelvedata.com/sma?symbol=${sym}&interval=1day&time_period=200&outputsize=1&apikey=${tdKey}`),
-      get(`https://api.twelvedata.com/rsi?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`),
-      get(`https://api.twelvedata.com/atr?symbol=${sym}&interval=1day&time_period=14&outputsize=1&apikey=${tdKey}`),
+      get(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=1day&outputsize=320&apikey=${tdKey}`),
     ]);
     if (!qRes?.close) { window.__tdErr = qRes?.message || "no quote returned"; return null; }
-    const val = (o,f) => o?.values?.[0]?.[f] ? parseFloat(o.values[0][f]) : null;
+    const bars = (tsRes?.values||[]).map(v=>({date:v.datetime,o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+v.volume})).reverse(); // oldest → newest
+    const ind = computeIndicators(bars);
     return {
       price:     parseFloat(qRes.close),
       prevClose: parseFloat(qRes.previous_close||0),
       high52:    parseFloat(qRes.fifty_two_week?.high||0),
       low52:     parseFloat(qRes.fifty_two_week?.low||0),
       volume:    parseInt(qRes.volume||0),
-      avgVolume: parseInt(qRes.average_volume||0),
+      avgVolume: ind.avgVol50 || parseInt(qRes.average_volume||0),
       name:      qRes.name || sym,
       exchange:  qRes.exchange || "",
       marketState: qRes.is_market_open ? "REGULAR" : "CLOSED",
       datetime:  qRes.datetime || new Date().toDateString(),
-      sma50:     val(s50Res,"sma"),
-      sma200:    val(s200Res,"sma"),
-      rsi:       val(rsiRes,"rsi"),
-      atr:       val(atrRes,"atr"),
+      ...ind,
       source:    "Twelve Data",
       freshness: "real-time",
     };
   } catch(e) { return null; }
+};
+
+// Indicators from daily bars (oldest → newest)
+const computeIndicators = (b) => {
+  const out = { sma50:null, sma200:null, sma200prev:null, rsi:null, atr:null, avgVol50:null, pivot:null, breakout:null };
+  if (!b || b.length < 60) return out;
+  const n = b.length, closes = b.map(x=>x.c);
+  const sma = (arr,len,end=arr.length) => end>=len ? arr.slice(end-len,end).reduce((s,x)=>s+x,0)/len : null;
+  out.sma50  = sma(closes,50);
+  out.sma200 = sma(closes,200);
+  out.sma200prev = sma(closes,200,n-20);            // 200DMA one month ago → is it rising?
+  out.avgVol50 = sma(b.map(x=>x.v),50,n-1);         // 50-day avg volume, excluding today
+  // RSI(14), Wilder
+  let g=0,l=0; for(let i=1;i<=14;i++){const d=closes[i]-closes[i-1]; if(d>0)g+=d; else l-=d;}
+  g/=14; l/=14;
+  for(let i=15;i<n;i++){const d=closes[i]-closes[i-1]; g=(g*13+Math.max(d,0))/14; l=(l*13+Math.max(-d,0))/14;}
+  out.rsi = l===0 ? 100 : 100-100/(1+g/l);
+  // ATR(14), Wilder
+  const tr = b.map((x,i)=> i===0 ? x.h-x.l : Math.max(x.h-x.l, Math.abs(x.h-b[i-1].c), Math.abs(x.l-b[i-1].c)));
+  let atr = tr.slice(1,15).reduce((s,x)=>s+x,0)/14;
+  for(let i=15;i<n;i++) atr=(atr*13+tr[i])/14;
+  out.atr = atr;
+  // Pivot = highest high of the prior year, EXCLUDING the last 5 sessions
+  const base = b.slice(Math.max(0,n-257), n-5);
+  if (base.length) out.pivot = Math.max(...base.map(x=>x.h));
+  // Breakout = a close above the pivot within the last 5 sessions; measure that day's volume
+  if (out.pivot) {
+    for (let i=n-5;i<n;i++) {
+      if (b[i].c > out.pivot) {
+        const av = sma(b.map(x=>x.v),50,i);
+        out.breakout = { date:b[i].date, close:b[i].c, volRatio: av? b[i].v/av : null };
+        break;
+      }
+    }
+  }
+  return out;
 };
 
 // ═══════════════════════════════════════════
@@ -451,38 +484,59 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
       result.checks.trend = { score:Math.round(SCORE_WEIGHTS.trend*0.5), status:"neutral", detail:"MAs not available — using web search estimate" };
     }
 
-    // GATE 2: Entry type (deterministic if we have 50DMA)
+    // GATE 2: Entry type
     if (d?.sma50) {
-      const pctAbove50 = ((d.price - d.sma50) / d.sma50) * 100;
-      const nearPullback = pctAbove50 >= -3 && pctAbove50 <= 3;
-      const pivot = d.high52; // use 52wk high as pivot proxy
-      const pctBelowPivot = pivot ? ((pivot - d.price) / pivot) * 100 : 999;
-      const atBreakout = pivot && pctBelowPivot <= 5 && pctBelowPivot >= -0.5;
-      const extended = pivot && pctBelowPivot < -5;
-      const noMansLand = !nearPullback && !atBreakout && !extended && d.price > d.sma50;
+      const price = d.price;
+      const pctFrom50 = ((price - d.sma50) / d.sma50) * 100;
+      const nearPullback = pctFrom50 >= -3 && pctFrom50 <= 3;
+      const pivot = d.pivot || d.high52;                       // prior-year high, excluding last 5 sessions
+      const pctVsPivot = pivot ? ((price - pivot) / pivot) * 100 : -999;   // + = above pivot
+      const bo = d.breakout;                                    // close above pivot in last 5 sessions
+      result.pivot = pivot;
+      const volNeed = 1.4;
 
-      if (nearPullback) {
+      if (pivot && price > pivot && pctVsPivot <= 5) {
+        // FIX 1 + 2: a real breakout = closed above the pivot on ≥1.4× average volume
+        if (bo && bo.volRatio >= volNeed) {
+          result.setupType = "BREAKOUT";
+          result.entryZone = { low: pivot, high: pivot * 1.05 };
+          result.stopLoss  = pivot * 0.93;
+          result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Broke out above pivot $${fmt(pivot)} on ${bo.date} with ${bo.volRatio.toFixed(1)}× avg volume` };
+        } else if (bo) {
+          result.setupType = "WEAK_BREAKOUT";
+          result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.25), status:"fail", detail:`Broke pivot $${fmt(pivot)} on only ${bo.volRatio?bo.volRatio.toFixed(1):"?"}× avg volume (need ${volNeed}×) — low-volume breakouts fail often` };
+        } else {
+          result.setupType = "INTRADAY";
+          result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"fail", detail:`Trading above pivot $${fmt(pivot)} but hasn't CLOSED above it yet — wait for the close and check volume` };
+        }
+      } else if (nearPullback) {
         result.setupType = "PULLBACK";
         result.entryZone = { low: d.sma50 * 0.97, high: d.sma50 * 1.03 };
         result.stopLoss  = d.sma50 * 0.93;
         result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Pullback to 50DMA zone ($${fmt(d.sma50 * 0.97)}–$${fmt(d.sma50 * 1.03)})` };
-      } else if (atBreakout) {
-        result.setupType = "BREAKOUT";
-        result.pivot     = pivot;
-        result.entryZone = { low: pivot, high: pivot * 1.05 };
-        result.stopLoss  = pivot * 0.93;
-        result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Breakout of 52wk high pivot $${fmt(pivot)}` };
-      } else if (extended) {
+      } else if (pivot && pctVsPivot > 5) {
         result.setupType = "EXTENDED";
-        result.checks.entry = { score:0, status:"fail", detail:`Extended ${Math.abs(pctBelowPivot).toFixed(1)}% past pivot — do not chase` };
-      } else if (noMansLand) {
+        result.checks.entry = { score:0, status:"fail", detail:`Extended ${pctVsPivot.toFixed(1)}% past pivot $${fmt(pivot)} — do not chase` };
+      } else if (pivot && pctVsPivot >= -5 && price > d.sma50) {
+        // FIX 1: near the pivot is a WATCH, not a buy
+        result.setupType = "WATCH";
+        result.watch = true;
+        result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"fail", detail:`${Math.abs(pctVsPivot).toFixed(1)}% below pivot $${fmt(pivot)} — set an alert; buy only on a close above it with ≥${volNeed}× volume (≥${fmt((d.avgVolume||0)*volNeed/1e6)}M shares)` };
+      } else if (price > d.sma50) {
         result.setupType = "NONE";
         result.noMansLand = true;
         result.pullbackTarget = d.sma50;
         result.breakoutTarget = pivot;
-        result.checks.entry = { score:0, status:"fail", detail:`No-man's land: above 50DMA but below pivot $${fmt(pivot)}` };
+        result.checks.entry = { score:0, status:"fail", detail:`No-man's land: above 50DMA but more than 5% below pivot $${fmt(pivot)}` };
       } else {
         result.checks.entry = { score:0, status:"fail", detail:"Below 50DMA — not a valid entry" };
+      }
+
+      // FIX 3: stop can never be more than 8% below the price you'd pay today (clamped to the buy zone)
+      if (result.stopLoss && result.entryZone) {
+        const entryRef = Math.min(Math.max(price, result.entryZone.low), result.entryZone.high);
+        const capped = entryRef * 0.92;
+        if (capped > result.stopLoss) { result.stopLoss = capped; result.stopCapped = true; }
       }
     } else {
       result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"neutral", detail:"Entry type determined by web search estimate" };
@@ -501,9 +555,9 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     if (d?.volume && d?.avgVolume && d.avgVolume > 0) {
       const volRatio = d.volume / d.avgVolume;
       const pullbackOk = result.setupType==="PULLBACK" && volRatio < 1.0;
-      const breakoutOk = result.setupType==="BREAKOUT" && volRatio >= 1.2;
+      const breakoutOk = result.setupType==="BREAKOUT";   // breakout-day volume enforced in Entry gate
       const pass = pullbackOk || breakoutOk || result.setupType==="NONE";
-      result.checks.volume = { score:pass?SCORE_WEIGHTS.volume:Math.round(SCORE_WEIGHTS.volume*0.3), status:pass?"pass":"neutral", detail:`Volume ${(volRatio*100).toFixed(0)}% of average` };
+      result.checks.volume = { score:pass?SCORE_WEIGHTS.volume:Math.round(SCORE_WEIGHTS.volume*0.3), status:pass?"pass":"neutral", detail: result.setupType==="BREAKOUT"&&d.breakout ? `Breakout day ${d.breakout.volRatio.toFixed(1)}× avg · today ${(volRatio*100).toFixed(0)}% of avg` : `Today ${(volRatio*100).toFixed(0)}% of 50-day average${d.marketState==="REGULAR"?" (market open — partial day)":""}` };
     } else {
       result.checks.volume = { score:Math.round(SCORE_WEIGHTS.volume*0.5), status:"neutral", detail:"Volume from web search estimate" };
     }
@@ -512,13 +566,27 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail:"Awaiting web data" };
     result.checks.fundamentals = marketData?.fundamentalsCheck || { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:"Awaiting web data" };
 
+    // FIX 4: Earnings — no new buys within 14 days of a report
+    const ne = marketData?.nextEarningsDate;
+    if (ne && /^\d{4}-\d{2}-\d{2}$/.test(ne)) {
+      const days = Math.ceil((new Date(ne+"T16:00:00") - new Date()) / 864e5);
+      result.earningsDays = days;
+      if (days >= 0 && days <= 14) result.checks.earnings = { score:0, status:"fail", detail:`Earnings ${ne} — in ${days} day${days===1?"":"s"}. No new buys within 14 days of a report` };
+      else if (days > 14) result.checks.earnings = { score:0, status:"pass", detail:`Next earnings ${ne} (${days} days away)` };
+      else result.checks.earnings = { score:0, status:"neutral", detail:`Last reported ${ne}` };
+    } else {
+      result.checks.earnings = { score:0, status:"neutral", detail: marketData ? "Next earnings date not found — check before buying" : "Checking earnings date…" };
+    }
+
     // HARD GATES — these override everything
     let rating = "BUY";
     if (result.checks.market.status==="fail")        rating = "DONT_BUY";
     else if (result.checks.trend.status==="fail")    rating = "DONT_BUY";
-    else if (result.checks.entry.status==="fail")    rating = "DONT_BUY";
+    else if (result.checks.entry.status==="fail")    rating = result.watch ? "WATCH" : "DONT_BUY";
     else if (result.checks.fundamentals.status==="fail") rating = "DONT_BUY";
+    else if (result.checks.earnings.status==="fail") rating = "DONT_BUY";
     else if (marketData?.marketStatus==="CORRECTION") rating = "DONT_BUY";
+    if (rating==="WATCH" && (result.checks.fundamentals.status==="fail" || result.checks.earnings.status==="fail" || marketData?.marketStatus==="CORRECTION")) rating = "DONT_BUY";
 
     // SELL signal
     if (d?.sma200 && d.price < d.sma200 && d?.sma50 && d.sma50 < d.sma200) rating = "SELL";
@@ -601,13 +669,13 @@ Chandelier stop: ${ruleResult.chandelierStop?'$'+fmt(ruleResult.chandelierStop):
 Hard stop: $${fmt(ruleResult.hardStop)}`;
 
   const systemPrompt = mode==="entry" ? `You are Signal Desk's explanation engine. The rule engine has already made the decision — your ONLY job is to:
-1. Use web search to find: S&P 500 / Nasdaq current condition, RS vs S&P over 3-6 months, latest quarterly EPS and revenue growth, any recent news.
+1. Use web search to find: S&P 500 / Nasdaq current condition, RS vs S&P over 3-6 months, latest quarterly EPS and revenue growth, the NEXT earnings report date, any recent news.
 2. Return a JSON object filling in the fields the rule engine couldn't compute from price data alone.
 3. Explain the decision in plain English.
 DO NOT change the rating, score, or any rule-engine output. The rules decide. You explain.
 
 Respond ONLY with raw JSON (no fences):
-{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
+{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"nextEarningsDate":"YYYY-MM-DD of the NEXT scheduled earnings report (search for it), or \"unknown\"","whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
   : `You are Signal Desk's explanation engine for position management. Use web search to find current chart condition, any news, analyst sentiment. Explain the position status in plain English.
 Respond ONLY with raw JSON (no fences):
 {"explanation":"3-4 sentences: current situation, what the exit levels mean, what to watch","whatChanges":["trigger 1","trigger 2","trigger 3"],"asOf":"freshness"}`;
@@ -839,8 +907,8 @@ const render = (sym, d, rule, ai, mode) => {
   const rungs=[];
   if (mode==="entry") {
     if (rule.entryZone) rungs.push(["BUY ZONE","#2FBF7122","var(--green)","$"+fmt(rule.entryZone.low)+" — $"+fmt(rule.entryZone.high),rule.setupType==="PULLBACK"?"(50DMA pullback zone)":"(base breakout zone)"]);
-    if (rule.pivot)     rungs.push(["PIVOT","#5B8DB822","var(--blue)","$"+fmt(rule.pivot),"(52-week high)"]);
-    if (rule.stopLoss)  rungs.push(["STOP LOSS","#E5484D22","var(--red)","$"+fmt(rule.stopLoss),"(7-8% rule — place immediately on fill)"]);
+    if (rule.pivot)     rungs.push(["PIVOT","#5B8DB822","var(--blue)","$"+fmt(rule.pivot),rule.watch?"(buy only on a close above, ≥1.4× volume)":"(prior 1-year high)"]);
+    if (rule.stopLoss)  rungs.push(["STOP LOSS","#E5484D22","var(--red)","$"+fmt(rule.stopLoss),rule.stopCapped?"(capped at 8% below today's price — place on fill)":"(7-8% rule — place immediately on fill)"]);
     $("planTitle").textContent="TRADE PLAN";
   } else {
     if (rule.chandelierStop) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),"(high − 3×ATR)"]);
@@ -861,7 +929,7 @@ const render = (sym, d, rule, ai, mode) => {
     const cr=$("chkRows"); cr.innerHTML="";
     const icons={pass:"✓",fail:"✕",neutral:"–"};
     const cols={pass:"var(--green)",fail:"var(--red)",neutral:"var(--amber)"};
-    const labels={market:"Market Gate",trend:"Trend Structure",entry:"Entry Setup",momentum:"Momentum (RSI)",volume:"Volume",rs:"Relative Strength",fundamentals:"Fundamentals"};
+    const labels={market:"Market Gate",trend:"Trend Structure",entry:"Entry Setup",momentum:"Momentum (RSI)",volume:"Volume",rs:"Relative Strength",fundamentals:"Fundamentals",earnings:"Earnings Date"};
     Object.entries(rule.checks).forEach(([k,chk])=>{
       cr.innerHTML+=`<div class="chk"><span class="chk-icon" style="color:${cols[chk.status]||'var(--muted)'}">${icons[chk.status]||'–'}</span><span class="chk-name">${labels[k]||k}</span><span class="chk-detail">${chk.detail}</span></div>`;
     });
@@ -881,10 +949,11 @@ const render = (sym, d, rule, ai, mode) => {
   $("explTitle").textContent = mode==="position"?"ACTION PLAN":"WHY THIS RATING";
   let why = "";
   if (mode!=="position") {
-    const lbl={market:"Market",trend:"Trend",entry:"Entry",momentum:"Momentum",volume:"Volume",rs:"Relative strength",fundamentals:"Fundamentals"};
-    const gates=["market","trend","entry","fundamentals"];
+    const lbl={market:"Market",trend:"Trend",entry:"Entry",momentum:"Momentum",volume:"Volume",rs:"Relative strength",fundamentals:"Fundamentals",earnings:"Earnings"};
+    const gates=["market","trend","entry","fundamentals","earnings"];
     const failed=gates.filter(k=>rule.checks[k]?.status==="fail").map(k=>lbl[k]+": "+rule.checks[k].detail);
-    if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals).";
+    if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals, earnings).";
+    else if (rule.rating==="WATCH") why="Watch list: "+rule.checks.entry.detail;
     else if (rule.rating==="SELL") why="Price is below the 200-day and the 50-day is below the 200-day — stage 4 downtrend.";
     else if (failed.length) why="Blocked by: "+failed.join(" · ");
     else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
