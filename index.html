@@ -437,8 +437,8 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
 
   if (mode === "entry") {
     // GATE 0: Market
-    const mkt = marketData?.market || "UNKNOWN";
-    result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt };
+    const mkt = marketData?.marketStatus || marketData?.market || "UNKNOWN";
+    result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt==="UNKNOWN" ? "Checking market…" : mkt+(marketData?.marketNote?" — "+marketData.marketNote:"") };
 
     // GATE 1: Trend (deterministic if we have MAs)
     if (d?.sma50 && d?.sma200) {
@@ -583,14 +583,17 @@ Volume: ${d.volume?.toLocaleString()||'n/a'} vs avg ${d.avgVolume?.toLocaleStrin
 Market state: ${d.marketState||'unknown'}` : "Live price data unavailable — use web search for all figures.";
 
   const ruleBlock = mode==="entry" ? `
-RULE ENGINE RESULT (deterministic — DO NOT change this):
-Rating: ${ruleResult.rating}
-Score: ${ruleResult.score}/100
+PRICE-BASED RULE CHECKS (deterministic — DO NOT change these):
+Trend: ${ruleResult.checks.trend.status} — ${ruleResult.checks.trend.detail}
+Entry: ${ruleResult.checks.entry.status} — ${ruleResult.checks.entry.detail}
+Momentum: ${ruleResult.checks.momentum.status} — ${ruleResult.checks.momentum.detail}
+Volume: ${ruleResult.checks.volume.status} — ${ruleResult.checks.volume.detail}
+(Market, RS and fundamentals are pending your research. The final BUY / DON'T BUY rating is computed by the rules AFTER you respond — do not state a rating.)
 Setup type: ${ruleResult.setupType}
 No-man's land: ${ruleResult.noMansLand}
 ${ruleResult.entryZone?`Buy zone: $${fmt(ruleResult.entryZone.low)}–$${fmt(ruleResult.entryZone.high)}`:'No valid entry zone'}
 ${ruleResult.stopLoss?`Stop loss: $${fmt(ruleResult.stopLoss)}`:''}
-Hard gates failed: ${Object.entries(ruleResult.checks).filter(([,v])=>v.status==="fail").map(([k])=>k).join(", ")||"none"}` : `
+` : `
 RULE ENGINE RESULT:
 Status: ${ruleResult.status}
 Gain: ${ruleResult.gainPct?.toFixed(1)||'?'}%
@@ -604,7 +607,7 @@ Hard stop: $${fmt(ruleResult.hardStop)}`;
 DO NOT change the rating, score, or any rule-engine output. The rules decide. You explain.
 
 Respond ONLY with raw JSON (no fences):
-{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION","marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: why this rating, what the chart looks like, what to watch","asOf":"data freshness"}`
+{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
   : `You are Signal Desk's explanation engine for position management. Use web search to find current chart condition, any news, analyst sentiment. Explain the position status in plain English.
 Respond ONLY with raw JSON (no fences):
 {"explanation":"3-4 sentences: current situation, what the exit levels mean, what to watch","whatChanges":["trigger 1","trigger 2","trigger 3"],"asOf":"freshness"}`;
@@ -876,7 +879,18 @@ const render = (sym, d, rule, ai, mode) => {
 
   // AI explanation
   $("explTitle").textContent = mode==="position"?"ACTION PLAN":"WHY THIS RATING";
-  $("explText").textContent  = ai?.explanation || "";
+  let why = "";
+  if (mode!=="position") {
+    const lbl={market:"Market",trend:"Trend",entry:"Entry",momentum:"Momentum",volume:"Volume",rs:"Relative strength",fundamentals:"Fundamentals"};
+    const gates=["market","trend","entry","fundamentals"];
+    const failed=gates.filter(k=>rule.checks[k]?.status==="fail").map(k=>lbl[k]+": "+rule.checks[k].detail);
+    if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals).";
+    else if (rule.rating==="SELL") why="Price is below the 200-day and the 50-day is below the 200-day — stage 4 downtrend.";
+    else if (failed.length) why="Blocked by: "+failed.join(" · ");
+    else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
+  }
+  $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || "");
+  $("explText").style.whiteSpace = "pre-line";
   show("explPanel");
 };
 
