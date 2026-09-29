@@ -283,20 +283,6 @@ const LOAD_STEPS = [
 ];
 
 // ═══════════════════════════════════════════
-// STORAGE
-// ═══════════════════════════════════════════
-const store = {
-  get: (k) => { try { return localStorage.getItem(k); } catch(e){ return null; } },
-  set: (k,v) => { try { localStorage.setItem(k,v); } catch(e){} },
-};
-
-let scanLog = [];
-try { scanLog = JSON.parse(store.get("sd2-log") || "[]"); } catch(e){}
-const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300))); updateLogCount(); };
-const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans"; };
-updateLogCount();
-
-// ═══════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════
 const $ = id => document.getElementById(id);
@@ -309,6 +295,20 @@ const hideAll = () => {
   ["confidence","mktBanner","ticket","scorePanel","nml","actRow","planPanel","chkPanel","changePanel","explPanel"].forEach(hide);
   $("actRow").style.display="none";
 };
+
+// ═══════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set: (k,v) => { try { localStorage.setItem(k,v); } catch(e){} },
+};
+
+let scanLog = [];
+try { scanLog = JSON.parse(store.get("sd2-log") || "[]"); } catch(e){}
+const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300))); updateLogCount(); };
+const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans"; };
+updateLogCount();
 
 // ═══════════════════════════════════════════
 // SETUP / KEY MANAGEMENT
@@ -613,7 +613,7 @@ Respond ONLY with raw JSON (no fences):
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST",
     headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-5",max_tokens:1200,system:systemPrompt,messages:[{role:"user",content:userMsg}],tools:[{type:"web_search_20250305",name:"web_search"}]})
+    body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:1200,system:systemPrompt,messages:[{role:"user",content:userMsg}],tools:[{type:"web_search_20250305",name:"web_search"}]})
   });
   if (!res.ok) {
     const eb = await res.json().catch(()=>({}));
