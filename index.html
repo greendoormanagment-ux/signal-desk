@@ -25,7 +25,16 @@ h1{font-family:'Archivo',sans-serif;font-weight:900;font-stretch:75%;font-size:2
 .setup-stat{font-size:11px;margin-top:2px}
 .setup-stat.ok{color:var(--green)}.setup-stat.err{color:var(--red)}
 /* tabs */
-.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+@media (max-width:560px){.tabs .tab{flex:1 1 calc(50% - 4px)}}
+.hc-card{background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--dim);border-radius:10px;padding:13px 14px;margin-bottom:10px}
+.hc-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.hc-sym{font-family:'Archivo',sans-serif;font-weight:800;font-size:18px;letter-spacing:.5px}
+.hc-badge{font-family:'Archivo',sans-serif;font-weight:800;font-size:10.5px;letter-spacing:1.5px;border-radius:5px;padding:4px 8px;border:1px solid}
+.hc-act{font-size:11.5px;color:var(--text);margin:8px 0 6px;line-height:1.55}
+.hc-meta{font-size:10.5px;color:var(--muted);line-height:1.7}
+.hc-meta b{color:var(--text);font-weight:600}
+textarea.inp{width:100%;font-size:14px;font-weight:500;font-family:'IBM Plex Mono',monospace;resize:vertical;line-height:1.5;box-sizing:border-box}
 .tab{flex:1;border:1px solid var(--border2);border-radius:8px;padding:9px 10px;cursor:pointer;background:var(--bg3);color:var(--dim);font-family:inherit;text-align:left;display:flex;flex-direction:column;gap:3px;transition:all .15s}
 .tab.act{border-color:var(--green);background:#12241B;color:var(--text)}
 .tab .tl{font-family:'Archivo',sans-serif;font-weight:800;font-stretch:80%;font-size:12px;letter-spacing:1.2px}
@@ -149,6 +158,7 @@ input,button{font-family:inherit}
   <button class="tab act" data-m="entry"><span class="tl">ENTRY SCAN</span><span class="ts">thinking of buying</span></button>
   <button class="tab" data-m="position"><span class="tl">POSITION REVIEW</span><span class="ts">already own it</span></button>
   <button class="tab" data-m="log"><span class="tl">LOG</span><span class="ts" id="logCount">0 scans</span></button>
+  <button class="tab" data-m="health"><span class="tl">HOLDINGS</span><span class="ts">stage health check</span></button>
 </div>
 
 <div class="row" id="inputRow">
@@ -242,6 +252,35 @@ input,button{font-family:inherit}
       <button class="btn-sm" id="csvBtn" style="font-size:10px;padding:6px 12px">COPY CSV</button>
     </div>
     <div id="logRows"></div>
+  </div>
+</div>
+
+<!-- holdings health check -->
+<div id="hcArea" style="display:none">
+  <div class="panel" style="display:block">
+    <div class="pt">HOLDINGS HEALTH CHECK · WEINSTEIN STAGE</div>
+    <div style="font-size:10.5px;color:var(--dim);line-height:1.6;margin-bottom:10px">One holding per line: <b style="color:var(--text)">TICKER, shares</b> (shares optional). Uses weekly bars and the 30-week average. Run it weekly or quarterly — it's for long-term holdings, not entries.</div>
+    <textarea class="inp" id="hcList" rows="8" placeholder="GOOGL, 903&#10;AAPL, 790&#10;TSLA, 646&#10;PLTR, 603"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn-go" id="hcBtn" style="flex:1">RUN HEALTH CHECK</button>
+      <button class="btn-sm" id="hcRevBtn" style="display:none">CHECK REVENUE TREND</button>
+      <button class="btn-sm" id="hcCsv" style="display:none">COPY CSV</button>
+    </div>
+    <div id="hcProg" style="font-size:11px;color:var(--blue);margin-top:10px;display:none"></div>
+  </div>
+  <div class="panel" id="hcSummary"></div>
+  <div id="hcRows"></div>
+  <div class="panel" style="display:block">
+    <div class="pt">HOW TO READ IT</div>
+    <div class="hc-meta">
+      <b style="color:var(--green)">STAGE 2 · HEALTHY</b> — price above a rising 30-week average. Hold; it's okay to add.<br>
+      <b style="color:var(--blue)">STAGE 2 · PULLBACK</b> — dipped below a still-rising average. Normal; watch that the average keeps rising.<br>
+      <b style="color:var(--amber)">STAGE 3 · WARNING</b> — the average has gone flat after an uptrend (topping). Stop adding; decide your exit level now.<br>
+      <b style="color:var(--amber)">STAGE 4 · EARLY</b> — below a falling average, but for fewer than 4 weeks. Get ready to act.<br>
+      <b style="color:var(--red)">STAGE 4 · PIVOT</b> — below a falling average for 4+ weeks. Your rule: cut half or more, no debate.<br>
+      <b style="color:var(--muted)">STAGE 1 · BASING</b> — flat after a decline. Not a buy until it breaks into Stage 2.<br>
+      <b>RS</b> — Mansfield relative strength vs the S&amp;P 500 (above 0 = beating the market).
+    </div>
   </div>
 </div>
 
@@ -366,7 +405,9 @@ document.querySelectorAll(".tab").forEach(b => {
   b.onclick = () => {
     mode = b.dataset.m;
     document.querySelectorAll(".tab").forEach(x => x.className="tab"+(x===b?" act":""));
-    $("inputRow").style.display = mode==="log"?"none":"flex";
+    $("inputRow").style.display = (mode==="log"||mode==="health")?"none":"flex";
+    $("hcArea").style.display = mode==="health"?"block":"none";
+    if (mode==="health") { hideAll(); hide("errbox"); }
     $("ep").style.display = mode==="position"?"block":"none";
     $("ed").style.display = mode==="position"?"block":"none";
     document.getElementById("logArea").style.display = mode==="log"?"block":"none";
@@ -1013,6 +1054,171 @@ $("csvBtn").onclick = () => {
     .then(()=>{ $("csvBtn").textContent="COPIED ✓"; setTimeout(()=>$("csvBtn").textContent="COPY CSV",2000); })
     .catch(()=>alert("Couldn't copy — try a different browser."));
 };
+
+// ═══════════════════════════════════════════
+// HOLDINGS HEALTH CHECK — Weinstein stage on weekly bars
+// ═══════════════════════════════════════════
+const HC_STAGE = {
+  S2:   { label:"STAGE 2 · HEALTHY",  color:"#2FBF71", rank:6, act:"Uptrend intact — price above a rising 30-week average. Hold." },
+  S2PB: { label:"STAGE 2 · PULLBACK", color:"#8FB6DA", rank:4, act:"Dipped below a still-rising 30-week average. Normal pullback — watch that the average keeps rising." },
+  S1:   { label:"STAGE 1 · BASING",   color:"#8A97A3", rank:5, act:"Flat after a decline. Not a buy until it breaks into Stage 2." },
+  S3:   { label:"STAGE 3 · WARNING",  color:"#E8A33D", rank:2, act:"Topping — the 30-week average has gone flat after an uptrend. Stop adding and set your exit level now." },
+  S4E:  { label:"STAGE 4 · EARLY",    color:"#E8A33D", rank:1, act:"Below a falling 30-week average, but for fewer than 4 weeks. Get ready to act if it doesn't recover." },
+  S4:   { label:"STAGE 4 · PIVOT",    color:"#E5484D", rank:0, act:"Below a falling 30-week average for 4+ weeks. Your rule: cut half or more — no debate." },
+};
+const hcParse = txt => {
+  const out = []; const seen = {};
+  (txt||"").split(/\n/).forEach(line => {
+    const m = line.trim().toUpperCase().match(/^([A-Z][A-Z0-9.\-]{0,9})[\s,;:\t]*([\d.,]*)/);
+    if (!m) return;
+    const sym = m[1].replace(/\.$/,""); const sh = parseFloat((m[2]||"").replace(/,/g,"")) || null;
+    if (seen[sym]) { if (sh) seen[sym].shares = (seen[sym].shares||0) + sh; return; }
+    seen[sym] = { sym, shares: sh }; out.push(seen[sym]);
+  });
+  return out;
+};
+const hcSleep = ms => new Promise(r=>setTimeout(r,ms));
+const hcFetchWeekly = async (sym, key) => {
+  for (let attempt=0; attempt<2; attempt++) {
+    const j = await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=1week&outputsize=90&apikey=${key}`).then(r=>r.json()).catch(()=>null);
+    if (j?.values?.length) return j.values.map(v=>({d:v.datetime,h:+v.high,c:+v.close})).reverse();
+    if (j?.code===429 || /credits|limit/i.test(j?.message||"")) { $("hcProg").textContent = "Free-plan limit reached — waiting 60 seconds…"; await hcSleep(61000); continue; }
+    return { error: j?.message || "no data" };
+  }
+  return { error: "rate limited" };
+};
+const hcStage = (b, spyMap) => {
+  const n = b.length; if (n < 36) return { error:`only ${n} weeks of history — need 36+` };
+  const C = b.map(x=>x.c);
+  const ma = i => i>=29 ? C.slice(i-29,i+1).reduce((s,x)=>s+x,0)/30 : null;
+  const m0 = ma(n-1), m4 = ma(n-5), m26 = ma(n-27);
+  const slope = (m0 - m4) / m4 * 100;                 // % change of the 30-week average over 4 weeks
+  const price = C[n-1], above = price > m0;
+  let below = 0; for (let i=n-1; i>=29 && C[i] < ma(i); i--) below++;
+  const FLAT = 0.75;
+  let key;
+  if (slope > FLAT)       key = above ? "S2" : "S2PB";
+  else if (slope < -FLAT) key = above ? "S1" : (below >= 4 ? "S4" : "S4E");
+  else                    key = (m26 && m0 > m26) ? "S3" : "S1";
+  // Mansfield RS vs SPY (52-week)
+  let rs = null;
+  if (spyMap) {
+    const ratio = b.map(x => spyMap[x.d] ? x.c / spyMap[x.d] : null);
+    const r = ratio.slice(-52).filter(v=>v!==null);
+    const last = ratio[n-1];
+    if (r.length >= 40 && last) rs = (last / (r.reduce((s,x)=>s+x,0)/r.length) - 1) * 100;
+  }
+  const hi52 = Math.max(...b.slice(-52).map(x=>x.h));
+  return { key, price, ma30:m0, slope, below, above, rs, offHigh:(price/hi52-1)*100, date:b[n-1].d };
+};
+let hcResults = [];
+try { hcResults = JSON.parse(store.get("sd2-hc-last")||"[]"); } catch(e){}
+$("hcList").value = store.get("sd2-holdings") || "";
+
+const hcRender = () => {
+  const rows = $("hcRows"); rows.innerHTML = "";
+  if (!hcResults.length) { hide("hcSummary"); $("hcCsv").style.display="none"; $("hcRevBtn").style.display="none"; return; }
+  const ok = hcResults.filter(r=>!r.error);
+  const total = ok.reduce((s,r)=>s+(r.value||0),0);
+  ok.forEach(r => r.weight = total && r.value ? r.value/total*100 : null);
+  const sorted = [...hcResults].sort((a,b)=>{
+    const ra = a.error?9:(a.revFlag?-1:HC_STAGE[a.key].rank), rb = b.error?9:(b.revFlag?-1:HC_STAGE[b.key].rank);
+    return ra-rb || (b.value||0)-(a.value||0);
+  });
+  const counts = {}; ok.forEach(r=>{ const k=r.revFlag?"S4":r.key; counts[k]=(counts[k]||0)+1; });
+  const pct = k => total ? ok.filter(r=>(r.revFlag?"S4":r.key)===k).reduce((s,r)=>s+(r.value||0),0)/total*100 : null;
+  const line = (k) => counts[k] ? `<span style="color:${HC_STAGE[k].color}">■</span> ${HC_STAGE[k].label}: <b>${counts[k]}</b>${pct(k)!==null?` (${pct(k).toFixed(0)}% of value)`:""}<br>` : "";
+  const big = ok.filter(r=>r.weight>15).map(r=>`${r.sym} ${r.weight.toFixed(0)}%`);
+  $("hcSummary").innerHTML = `<div class="pt">SUMMARY · ${ok[0]?.date||""}</div><div class="hc-meta">${["S4","S4E","S3","S2PB","S1","S2"].map(line).join("")}${total?`<br>Total value: <b>$${fmt(total)}</b>`:""}${big.length?`<br><span style="color:var(--amber)">⚠ Concentration over 15%: ${big.join(" · ")}</span>`:""}</div>`;
+  show("hcSummary");
+  sorted.forEach(r => {
+    if (r.error) { rows.innerHTML += `<div class="hc-card"><div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:var(--dim);border-color:var(--border2)">NO DATA</span></div><div class="hc-meta">${r.error}</div></div>`; return; }
+    const st = r.revFlag ? HC_STAGE.S4 : HC_STAGE[r.key];
+    const act = r.revFlag ? `Revenue shrank year-over-year in each of the last two quarters (${r.revNote}). Your rule: cut half or more.` : st.act;
+    rows.innerHTML += `<div class="hc-card" style="border-left-color:${st.color}">
+      <div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:${st.color};border-color:${st.color}66;background:${st.color}14">${r.revFlag?"PIVOT · REVENUE":st.label}</span></div>
+      <div class="hc-act">${act}</div>
+      <div class="hc-meta">Price <b>$${fmt(r.price)}</b> · 30-wk avg <b>$${fmt(r.ma30)}</b> (${r.slope>=0?"+":""}${r.slope.toFixed(1)}% in 4 wks)${r.below?` · <b>${r.below}</b> wk${r.below>1?"s":""} below`:""}<br>
+      RS vs S&amp;P <b style="color:${r.rs===null?"var(--muted)":r.rs>=0?"var(--green)":"var(--red)"}">${r.rs===null?"—":(r.rs>=0?"+":"")+r.rs.toFixed(1)}</b> · ${r.offHigh.toFixed(0)}% from 52-wk high${r.weight?` · <b>${r.weight.toFixed(1)}%</b> of holdings${r.weight>15?' <span style="color:var(--amber)">⚠</span>':""}`:""}${r.revNote&&!r.revFlag?`<br>Revenue: ${r.revNote}`:""}</div>
+    </div>`;
+  });
+  $("hcCsv").style.display = "inline-block"; $("hcRevBtn").style.display = "inline-block";
+};
+
+$("hcBtn").onclick = async () => {
+  const key = store.get("sd2-tkey");
+  if (!key) { $("hcProg").style.display="block"; $("hcProg").textContent="Add your Twelve Data key first — tap the setup bar at the top."; $("setupBox").classList.add("open"); return; }
+  const list = hcParse($("hcList").value);
+  if (!list.length) { $("hcProg").style.display="block"; $("hcProg").textContent="Enter at least one ticker."; return; }
+  store.set("sd2-holdings", $("hcList").value);
+  $("hcBtn").disabled = true; $("hcProg").style.display="block";
+  const perMin = 7, gap = Math.ceil(60000/perMin);
+  const eta = Math.ceil((list.length+1)/perMin);
+  const out = [];
+  try {
+    $("hcProg").textContent = `Fetching S&P 500 benchmark… (free plan ≈ ${perMin}/min, about ${eta} min total)`;
+    const spy = await hcFetchWeekly("SPY", key);
+    const spyMap = Array.isArray(spy) ? Object.fromEntries(spy.map(x=>[x.d,x.c])) : null;
+    for (let i=0; i<list.length; i++) {
+      await hcSleep(gap);
+      const it = list[i];
+      $("hcProg").textContent = `Checking ${it.sym} (${i+1}/${list.length}) — about ${Math.max(1,Math.ceil((list.length-i)/perMin))} min left…`;
+      const bars = await hcFetchWeekly(it.sym, key);
+      if (!Array.isArray(bars)) { out.push({ sym:it.sym, error:bars.error }); continue; }
+      const s = hcStage(bars, spyMap);
+      if (s.error) { out.push({ sym:it.sym, error:s.error }); continue; }
+      out.push({ sym:it.sym, shares:it.shares, value: it.shares ? it.shares*s.price : null, ...s });
+      hcResults = out; hcRender();
+    }
+    hcResults = out; store.set("sd2-hc-last", JSON.stringify(out)); hcRender();
+    $("hcProg").textContent = `Done — ${out.filter(r=>!r.error).length} of ${list.length} checked. Weekly bars as of ${out.find(r=>r.date)?.date||"—"}.`;
+  } catch(e) {
+    $("hcProg").textContent = "Error: " + e.message;
+  } finally { $("hcBtn").disabled = false; }
+};
+
+$("hcRevBtn").onclick = async () => {
+  const aKey = store.get("sd2-akey");
+  if (!aKey) { $("hcProg").textContent="Add your Anthropic key first."; return; }
+  const syms = hcResults.filter(r=>!r.error).map(r=>r.sym);
+  if (!syms.length) return;
+  $("hcRevBtn").disabled = true; $("hcProg").style.display="block";
+  $("hcProg").textContent = `Asking Claude for revenue trends on ${syms.length} holdings (web search, ~1 min)…`;
+  try {
+    const sys = `You look up facts only. For each ticker, find year-over-year revenue growth for the two most recently REPORTED quarters. ETFs/funds: use null. Respond ONLY with raw JSON: {"TICKER":{"latestPct":number|null,"priorPct":number|null,"quarters":"e.g. Q2'26, Q1'26"}}`;
+    const msgs = [{role:"user",content:"Tickers: "+syms.join(", ")}];
+    let text = "";
+    for (let turn=0; turn<5; turn++) {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:8000,system:sys,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:Math.min(20,syms.length+4)}]})});
+      if (!res.ok) { const eb = await res.json().catch(()=>({})); throw new Error("API "+res.status+": "+(eb?.error?.message||res.statusText)); }
+      const data = await res.json();
+      text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n") || text;
+      if (data.stop_reason !== "pause_turn") break;
+      msgs.push({role:"assistant",content:data.content});
+    }
+    const clean = text.replace(/```json\n?|```\n?/g,""); const j = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}")+1));
+    hcResults.forEach(r => {
+      const v = j[r.sym]; if (!v || r.error) return;
+      const a = typeof v.latestPct==="number"?v.latestPct:null, b = typeof v.priorPct==="number"?v.priorPct:null;
+      if (a===null && b===null) return;
+      r.revNote = `${a!==null?(a>=0?"+":"")+a.toFixed(0)+"%":"?"} latest, ${b!==null?(b>=0?"+":"")+b.toFixed(0)+"%":"?"} prior${v.quarters?" ("+v.quarters+")":""}`;
+      r.revFlag = a!==null && b!==null && a<0 && b<0;
+    });
+    store.set("sd2-hc-last", JSON.stringify(hcResults)); hcRender();
+    $("hcProg").textContent = "Revenue trends added. Any holding with two straight quarters of shrinking revenue is marked PIVOT.";
+  } catch(e) { $("hcProg").textContent = "Revenue check failed: " + e.message; }
+  finally { $("hcRevBtn").disabled = false; }
+};
+
+$("hcCsv").onclick = () => {
+  const head = "Ticker,Shares,Price,Value,Weight %,Stage,30wk Avg,Avg 4wk Slope %,Weeks Below,RS vs SPX,% From 52wk High,Revenue,As Of";
+  const rows = hcResults.filter(r=>!r.error).map(r=>[r.sym,r.shares||"",r.price.toFixed(2),r.value?r.value.toFixed(0):"",r.weight?r.weight.toFixed(1):"",
+    r.revFlag?"STAGE 4 · PIVOT (revenue)":HC_STAGE[r.key].label,r.ma30.toFixed(2),r.slope.toFixed(1),r.below,r.rs===null?"":r.rs.toFixed(1),r.offHigh.toFixed(1),'"'+(r.revNote||"")+'"',r.date].join(","));
+  navigator.clipboard.writeText([head,...rows].join("\n")).then(()=>{ $("hcCsv").textContent="COPIED ✓"; setTimeout(()=>$("hcCsv").textContent="COPY CSV",2000); }).catch(()=>{});
+};
+hcRender();
 }); // end DOMContentLoaded
 </script>
 </body>
