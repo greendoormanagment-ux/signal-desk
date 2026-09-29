@@ -259,7 +259,7 @@ input,button{font-family:inherit}
 <div id="hcArea" style="display:none">
   <div class="panel" style="display:block">
     <div class="pt">HOLDINGS HEALTH CHECK · WEINSTEIN STAGE</div>
-    <div style="font-size:10.5px;color:var(--dim);line-height:1.6;margin-bottom:10px">One holding per line: <b style="color:var(--text)">TICKER, shares</b> (shares optional). After you cut a position, add <b style="color:var(--text)">trimmed</b> to its line (e.g. <b style="color:var(--text)">TSLA, 323, trimmed</b>) and you'll get a BUY BACK alert when it returns to Stage 2. Uses weekly bars and the 30-week average. Run it weekly or quarterly — it's for long-term holdings, not entries.</div>
+    <div style="font-size:10.5px;color:var(--dim);line-height:1.6;margin-bottom:10px">One holding per line: <b style="color:var(--text)">TICKER, shares, account</b> (account optional — e.g. <b style="color:var(--text)">401k</b>, <b style="color:var(--text)">dad</b>, <b style="color:var(--text)">kids</b>; any account with 401k/IRA in its name is treated as tax-free to sell). The same stock can appear on several lines, one per account. After you cut a position, add <b style="color:var(--text)">trimmed</b> to its line (e.g. <b style="color:var(--text)">TSLA, 323, trimmed</b>) and you'll get a BUY BACK alert when it returns to Stage 2. Uses weekly bars and the 30-week average. Run it weekly or quarterly — it's for long-term holdings, not entries.</div>
     <textarea class="inp" id="hcList" rows="8" placeholder="GOOGL, 903&#10;AAPL, 790&#10;TSLA, 646&#10;PLTR, 603"></textarea>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-go" id="hcBtn" style="flex:1">RUN HEALTH CHECK</button>
@@ -1074,13 +1074,21 @@ const hcParse = txt => {
     const m = line.trim().toUpperCase().match(/^([A-Z][A-Z0-9.\-]{0,9})[\s,;:\t]*([\d.,]*)/);
     if (!m) return;
     const sym = m[1].replace(/\.$/,""); const sh = parseFloat((m[2]||"").replace(/,/g,"")) || null;
-    const trimmed = /TRIM/.test(line.toUpperCase().slice(m[0].length));
-    if (seen[sym]) { if (sh) seen[sym].shares = (seen[sym].shares||0) + sh; if (trimmed) seen[sym].trimmed = true; return; }
-    seen[sym] = { sym, shares: sh, trimmed }; out.push(seen[sym]);
+    const words = line.slice(m[0].length).split(/[\s,;:\t]+/).map(w=>w.trim().toLowerCase()).filter(Boolean);
+    const trimmed = words.some(w=>/^trim/.test(w));
+    const acct = words.find(w=>!/^trim/.test(w) && !/^[\d.]+$/.test(w)) || "";
+    if (!seen[sym]) { seen[sym] = { sym, shares:null, trimmed:false, lots:[] }; out.push(seen[sym]); }
+    const it = seen[sym];
+    if (sh) it.shares = (it.shares||0) + sh;
+    if (trimmed) it.trimmed = true;
+    it.lots.push({ acct, shares: sh, trimmed });
   });
   return out;
 };
 const hcSleep = ms => new Promise(r=>setTimeout(r,ms));
+const HC_COMPANY = { GOOG:"Alphabet", GOOGL:"Alphabet", "BRK.A":"Berkshire", "BRK.B":"Berkshire" };
+const hcTaxFree = a => /401k|ira|roth|403b|457|hsa/i.test(a||"");
+const hcAcctName = a => a || "unassigned";
 const hcFetchWeekly = async (sym, key) => {
   for (let attempt=0; attempt<2; attempt++) {
     const j = await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=1week&outputsize=90&apikey=${key}`).then(r=>r.json()).catch(()=>null);
@@ -1120,6 +1128,20 @@ try { hcHist = JSON.parse(store.get("sd2-hc-hist")||"{}"); } catch(e){}
 try { hcResults = JSON.parse(store.get("sd2-hc-last")||"[]"); } catch(e){}
 $("hcList").value = store.get("sd2-holdings") || "";
 
+const hcLotsHtml = (r) => {
+  const lots = (r.lots||[]).filter(l=>l.acct || (r.lots||[]).length>1);
+  if (!lots.length) return "";
+  const split = lots.map(l=>`${hcAcctName(l.acct)} ${l.shares?(+l.shares.toFixed(3)):"—"}${l.trimmed?" (trimmed)":""}`).join(" · ");
+  const k = r.revFlag ? "S4" : r.key;
+  let hint = "";
+  if (k==="S4" || k==="S4E" || k==="S3") {
+    const held = lots.filter(l=>l.shares);
+    const order = [...held].sort((a,b)=>(hcTaxFree(b.acct)?1:0)-(hcTaxFree(a.acct)?1:0));
+    if (order.length) hint += `<br><span style="color:var(--amber)">Sell first in: ${order.map(l=>hcAcctName(l.acct)+(hcTaxFree(l.acct)?" (no tax)":"")).join(" → ")}</span>`;
+    if (held.some(l=>!hcTaxFree(l.acct)) && held.length>1) hint += `<br><span style="color:var(--dim)">Wash-sale: if you sell at a loss in a taxable account, don't buy ${r.sym} in ANY account for 31 days.</span>`;
+  }
+  return `<br>Accounts: ${split}${hint}`;
+};
 const hcRender = () => {
   const rows = $("hcRows"); rows.innerHTML = "";
   if (!hcResults.length) { hide("hcSummary"); $("hcCsv").style.display="none"; $("hcRevBtn").style.display="none"; return; }
@@ -1133,8 +1155,15 @@ const hcRender = () => {
   const counts = {}; ok.forEach(r=>{ const k=r.revFlag?"S4":r.key; counts[k]=(counts[k]||0)+1; });
   const pct = k => total ? ok.filter(r=>(r.revFlag?"S4":r.key)===k).reduce((s,r)=>s+(r.value||0),0)/total*100 : null;
   const line = (k) => counts[k] ? `<span style="color:${HC_STAGE[k].color}">■</span> ${HC_STAGE[k].label}: <b>${counts[k]}</b>${pct(k)!==null?` (${pct(k).toFixed(0)}% of value)`:""}<br>` : "";
-  const big = ok.filter(r=>r.weight>15).map(r=>`${r.sym} ${r.weight.toFixed(0)}%`);
-  $("hcSummary").innerHTML = `<div class="pt">SUMMARY · ${ok[0]?.date||""}</div><div class="hc-meta">${["BUYBACK","S4","S4E","S3","S2PB","S1","S2"].map(line).join("")}${total?`<br>Total value: <b>$${fmt(total)}</b>`:""}${big.length?`<br><span style="color:var(--amber)">⚠ Concentration over 15%: ${big.join(" · ")}</span>`:""}</div>`;
+  const byCo = {}; ok.forEach(r=>{ const c = HC_COMPANY[r.sym]||r.sym; byCo[c]=(byCo[c]||0)+(r.weight||0); });
+  const big = Object.entries(byCo).filter(([,w])=>w>15).sort((a,b)=>b[1]-a[1]).map(([c,w])=>`${c} ${w.toFixed(0)}%`);
+  // per-account totals
+  const acc = {};
+  ok.forEach(r => (r.lots||[]).forEach(l => { if (!l.shares) return; const a = hcAcctName(l.acct); const v = l.shares*r.price;
+    acc[a] = acc[a] || { v:0, warn:0 }; acc[a].v += v; const k = r.revFlag?"S4":r.key; if (k==="S4"||k==="S4E"||k==="S3") acc[a].warn += v; }));
+  const accKeys = Object.keys(acc);
+  const accHtml = (accKeys.length>1 || (accKeys[0] && accKeys[0]!=="unassigned")) ? `<br><b>By account</b><br>` + accKeys.sort((a,b)=>acc[b].v-acc[a].v).map(a=>`${a}${hcTaxFree(a)?" (tax-free to sell)":""}: <b>$${fmt(acc[a].v)}</b>${acc[a].warn?` · <span style="color:var(--amber)">${(acc[a].warn/acc[a].v*100).toFixed(0)}% in Stage 3/4</span>`:""}`).join("<br>") : "";
+  $("hcSummary").innerHTML = `<div class="pt">SUMMARY · ${ok[0]?.date||""}</div><div class="hc-meta">${["BUYBACK","S4","S4E","S3","S2PB","S1","S2"].map(line).join("")}${total?`<br>Total value: <b>$${fmt(total)}</b>`:""}${big.length?`<br><span style="color:var(--amber)">⚠ Concentration over 15% (by company): ${big.join(" · ")}</span>`:""}${accHtml}</div>`;
   show("hcSummary");
   sorted.forEach(r => {
     if (r.error) { rows.innerHTML += `<div class="hc-card"><div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:var(--dim);border-color:var(--border2)">NO DATA</span></div><div class="hc-meta">${r.error}</div></div>`; return; }
@@ -1144,7 +1173,7 @@ const hcRender = () => {
       <div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:${st.color};border-color:${st.color}66;background:${st.color}14">${r.revFlag?"PIVOT · REVENUE":st.label}</span></div>
       <div class="hc-act">${act}${r.trimmed&&r.key!=="BUYBACK"?' <span style="color:var(--dim)">(marked trimmed — watching for a return to Stage 2)</span>':""}</div>
       <div class="hc-meta">Price <b>$${fmt(r.price)}</b> · 30-wk avg <b>$${fmt(r.ma30)}</b> (${r.slope>=0?"+":""}${r.slope.toFixed(1)}% in 4 wks)${r.below?` · <b>${r.below}</b> wk${r.below>1?"s":""} below`:""}<br>
-      RS vs S&amp;P <b style="color:${r.rs===null?"var(--muted)":r.rs>=0?"var(--green)":"var(--red)"}">${r.rs===null?"—":(r.rs>=0?"+":"")+r.rs.toFixed(1)}</b> · ${r.offHigh.toFixed(0)}% from 52-wk high${r.weight?` · <b>${r.weight.toFixed(1)}%</b> of holdings${r.weight>15?' <span style="color:var(--amber)">⚠</span>':""}`:""}${r.revNote&&!r.revFlag?`<br>Revenue: ${r.revNote}`:""}</div>
+      RS vs S&amp;P <b style="color:${r.rs===null?"var(--muted)":r.rs>=0?"var(--green)":"var(--red)"}">${r.rs===null?"—":(r.rs>=0?"+":"")+r.rs.toFixed(1)}</b> · ${r.offHigh.toFixed(0)}% from 52-wk high${r.weight?` · <b>${r.weight.toFixed(1)}%</b> of holdings${r.weight>15?' <span style="color:var(--amber)">⚠</span>':""}`:""}${r.revNote&&!r.revFlag?`<br>Revenue: ${r.revNote}`:""}${hcLotsHtml(r)}</div>
     </div>`;
   });
   $("hcCsv").style.display = "inline-block"; $("hcRevBtn").style.display = "inline-block";
@@ -1178,7 +1207,7 @@ $("hcBtn").onclick = async () => {
       if (s.key==="S4") hcHist[it.sym] = { lastKey:"S4", s4Date:s.date };
       else hcHist[it.sym] = { lastKey:s.key, s4Date: (s.key==="S2" && !buyBack) ? null : (prev?.s4Date||null) };
       if (buyBack) hcHist[it.sym].s4Date = null;
-      out.push({ sym:it.sym, shares:it.shares, value: it.shares ? it.shares*s.price : null, ...s, key: buyBack?"BUYBACK":s.key, trimmed:it.trimmed });
+      out.push({ sym:it.sym, shares:it.shares, value: it.shares ? it.shares*s.price : null, ...s, key: buyBack?"BUYBACK":s.key, trimmed:it.trimmed, lots:it.lots });
       hcResults = out; hcRender();
     }
     hcResults = out; store.set("sd2-hc-last", JSON.stringify(out)); store.set("sd2-hc-hist", JSON.stringify(hcHist)); hcRender();
@@ -1224,8 +1253,8 @@ $("hcRevBtn").onclick = async () => {
 };
 
 $("hcCsv").onclick = () => {
-  const head = "Ticker,Shares,Price,Value,Weight %,Stage,30wk Avg,Avg 4wk Slope %,Weeks Below,RS vs SPX,% From 52wk High,Revenue,As Of";
-  const rows = hcResults.filter(r=>!r.error).map(r=>[r.sym,r.shares||"",r.price.toFixed(2),r.value?r.value.toFixed(0):"",r.weight?r.weight.toFixed(1):"",
+  const head = "Ticker,Accounts,Shares,Price,Value,Weight %,Stage,30wk Avg,Avg 4wk Slope %,Weeks Below,RS vs SPX,% From 52wk High,Revenue,As Of";
+  const rows = hcResults.filter(r=>!r.error).map(r=>[r.sym,'"'+(r.lots||[]).map(l=>hcAcctName(l.acct)+" "+(l.shares||"")).join("; ")+'"',r.shares||"",r.price.toFixed(2),r.value?r.value.toFixed(0):"",r.weight?r.weight.toFixed(1):"",
     r.revFlag?"STAGE 4 · PIVOT (revenue)":HC_STAGE[r.key].label,r.ma30.toFixed(2),r.slope.toFixed(1),r.below,r.rs===null?"":r.rs.toFixed(1),r.offHigh.toFixed(1),'"'+(r.revNote||"")+'"',r.date].join(","));
   navigator.clipboard.writeText([head,...rows].join("\n")).then(()=>{ $("hcCsv").textContent="COPIED ✓"; setTimeout(()=>$("hcCsv").textContent="COPY CSV",2000); }).catch(()=>{});
 };
