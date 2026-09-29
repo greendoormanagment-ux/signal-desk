@@ -259,7 +259,7 @@ input,button{font-family:inherit}
 <div id="hcArea" style="display:none">
   <div class="panel" style="display:block">
     <div class="pt">HOLDINGS HEALTH CHECK · WEINSTEIN STAGE</div>
-    <div style="font-size:10.5px;color:var(--dim);line-height:1.6;margin-bottom:10px">One holding per line: <b style="color:var(--text)">TICKER, shares</b> (shares optional). Uses weekly bars and the 30-week average. Run it weekly or quarterly — it's for long-term holdings, not entries.</div>
+    <div style="font-size:10.5px;color:var(--dim);line-height:1.6;margin-bottom:10px">One holding per line: <b style="color:var(--text)">TICKER, shares</b> (shares optional). After you cut a position, add <b style="color:var(--text)">trimmed</b> to its line (e.g. <b style="color:var(--text)">TSLA, 323, trimmed</b>) and you'll get a BUY BACK alert when it returns to Stage 2. Uses weekly bars and the 30-week average. Run it weekly or quarterly — it's for long-term holdings, not entries.</div>
     <textarea class="inp" id="hcList" rows="8" placeholder="GOOGL, 903&#10;AAPL, 790&#10;TSLA, 646&#10;PLTR, 603"></textarea>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-go" id="hcBtn" style="flex:1">RUN HEALTH CHECK</button>
@@ -273,6 +273,7 @@ input,button{font-family:inherit}
   <div class="panel" style="display:block">
     <div class="pt">HOW TO READ IT</div>
     <div class="hc-meta">
+      <b style="color:var(--green)">STAGE 2 · BUY BACK</b> — was Stage 4 (or marked trimmed) and is back above a rising 30-week average. Buy back the half you sold.<br>
       <b style="color:var(--green)">STAGE 2 · HEALTHY</b> — price above a rising 30-week average. Hold; it's okay to add.<br>
       <b style="color:var(--blue)">STAGE 2 · PULLBACK</b> — dipped below a still-rising average. Normal; watch that the average keeps rising.<br>
       <b style="color:var(--amber)">STAGE 3 · WARNING</b> — the average has gone flat after an uptrend (topping). Stop adding; decide your exit level now.<br>
@@ -1059,6 +1060,7 @@ $("csvBtn").onclick = () => {
 // HOLDINGS HEALTH CHECK — Weinstein stage on weekly bars
 // ═══════════════════════════════════════════
 const HC_STAGE = {
+  BUYBACK:{ label:"STAGE 2 · BUY BACK", color:"#2FBF71", rank:-2, act:"Back above a rising 30-week average after a Stage 4 exit. Your rule: buy back the half you sold (keep it within your size cap), then remove \"trimmed\" from its line." },
   S2:   { label:"STAGE 2 · HEALTHY",  color:"#2FBF71", rank:6, act:"Uptrend intact — price above a rising 30-week average. Hold." },
   S2PB: { label:"STAGE 2 · PULLBACK", color:"#8FB6DA", rank:4, act:"Dipped below a still-rising 30-week average. Normal pullback — watch that the average keeps rising." },
   S1:   { label:"STAGE 1 · BASING",   color:"#8A97A3", rank:5, act:"Flat after a decline. Not a buy until it breaks into Stage 2." },
@@ -1072,8 +1074,9 @@ const hcParse = txt => {
     const m = line.trim().toUpperCase().match(/^([A-Z][A-Z0-9.\-]{0,9})[\s,;:\t]*([\d.,]*)/);
     if (!m) return;
     const sym = m[1].replace(/\.$/,""); const sh = parseFloat((m[2]||"").replace(/,/g,"")) || null;
-    if (seen[sym]) { if (sh) seen[sym].shares = (seen[sym].shares||0) + sh; return; }
-    seen[sym] = { sym, shares: sh }; out.push(seen[sym]);
+    const trimmed = /TRIM/.test(line.toUpperCase().slice(m[0].length));
+    if (seen[sym]) { if (sh) seen[sym].shares = (seen[sym].shares||0) + sh; if (trimmed) seen[sym].trimmed = true; return; }
+    seen[sym] = { sym, shares: sh, trimmed }; out.push(seen[sym]);
   });
   return out;
 };
@@ -1112,6 +1115,8 @@ const hcStage = (b, spyMap) => {
   return { key, price, ma30:m0, slope, below, above, rs, offHigh:(price/hi52-1)*100, date:b[n-1].d };
 };
 let hcResults = [];
+let hcHist = {};
+try { hcHist = JSON.parse(store.get("sd2-hc-hist")||"{}"); } catch(e){}
 try { hcResults = JSON.parse(store.get("sd2-hc-last")||"[]"); } catch(e){}
 $("hcList").value = store.get("sd2-holdings") || "";
 
@@ -1129,7 +1134,7 @@ const hcRender = () => {
   const pct = k => total ? ok.filter(r=>(r.revFlag?"S4":r.key)===k).reduce((s,r)=>s+(r.value||0),0)/total*100 : null;
   const line = (k) => counts[k] ? `<span style="color:${HC_STAGE[k].color}">■</span> ${HC_STAGE[k].label}: <b>${counts[k]}</b>${pct(k)!==null?` (${pct(k).toFixed(0)}% of value)`:""}<br>` : "";
   const big = ok.filter(r=>r.weight>15).map(r=>`${r.sym} ${r.weight.toFixed(0)}%`);
-  $("hcSummary").innerHTML = `<div class="pt">SUMMARY · ${ok[0]?.date||""}</div><div class="hc-meta">${["S4","S4E","S3","S2PB","S1","S2"].map(line).join("")}${total?`<br>Total value: <b>$${fmt(total)}</b>`:""}${big.length?`<br><span style="color:var(--amber)">⚠ Concentration over 15%: ${big.join(" · ")}</span>`:""}</div>`;
+  $("hcSummary").innerHTML = `<div class="pt">SUMMARY · ${ok[0]?.date||""}</div><div class="hc-meta">${["BUYBACK","S4","S4E","S3","S2PB","S1","S2"].map(line).join("")}${total?`<br>Total value: <b>$${fmt(total)}</b>`:""}${big.length?`<br><span style="color:var(--amber)">⚠ Concentration over 15%: ${big.join(" · ")}</span>`:""}</div>`;
   show("hcSummary");
   sorted.forEach(r => {
     if (r.error) { rows.innerHTML += `<div class="hc-card"><div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:var(--dim);border-color:var(--border2)">NO DATA</span></div><div class="hc-meta">${r.error}</div></div>`; return; }
@@ -1137,7 +1142,7 @@ const hcRender = () => {
     const act = r.revFlag ? `Revenue shrank year-over-year in each of the last two quarters (${r.revNote}). Your rule: cut half or more.` : st.act;
     rows.innerHTML += `<div class="hc-card" style="border-left-color:${st.color}">
       <div class="hc-top"><span class="hc-sym">${r.sym}</span><span class="hc-badge" style="color:${st.color};border-color:${st.color}66;background:${st.color}14">${r.revFlag?"PIVOT · REVENUE":st.label}</span></div>
-      <div class="hc-act">${act}</div>
+      <div class="hc-act">${act}${r.trimmed&&r.key!=="BUYBACK"?' <span style="color:var(--dim)">(marked trimmed — watching for a return to Stage 2)</span>':""}</div>
       <div class="hc-meta">Price <b>$${fmt(r.price)}</b> · 30-wk avg <b>$${fmt(r.ma30)}</b> (${r.slope>=0?"+":""}${r.slope.toFixed(1)}% in 4 wks)${r.below?` · <b>${r.below}</b> wk${r.below>1?"s":""} below`:""}<br>
       RS vs S&amp;P <b style="color:${r.rs===null?"var(--muted)":r.rs>=0?"var(--green)":"var(--red)"}">${r.rs===null?"—":(r.rs>=0?"+":"")+r.rs.toFixed(1)}</b> · ${r.offHigh.toFixed(0)}% from 52-wk high${r.weight?` · <b>${r.weight.toFixed(1)}%</b> of holdings${r.weight>15?' <span style="color:var(--amber)">⚠</span>':""}`:""}${r.revNote&&!r.revFlag?`<br>Revenue: ${r.revNote}`:""}</div>
     </div>`;
@@ -1167,10 +1172,16 @@ $("hcBtn").onclick = async () => {
       if (!Array.isArray(bars)) { out.push({ sym:it.sym, error:bars.error }); continue; }
       const s = hcStage(bars, spyMap);
       if (s.error) { out.push({ sym:it.sym, error:s.error }); continue; }
-      out.push({ sym:it.sym, shares:it.shares, value: it.shares ? it.shares*s.price : null, ...s });
+      // Buy-back rule: Stage 2 again after a Stage 4 (seen on an earlier run) or a holding you marked "trimmed"
+      const prev = hcHist[it.sym];
+      const buyBack = s.key==="S2" && (it.trimmed || (prev && prev.s4Date && prev.lastKey!=="S2"));
+      if (s.key==="S4") hcHist[it.sym] = { lastKey:"S4", s4Date:s.date };
+      else hcHist[it.sym] = { lastKey:s.key, s4Date: (s.key==="S2" && !buyBack) ? null : (prev?.s4Date||null) };
+      if (buyBack) hcHist[it.sym].s4Date = null;
+      out.push({ sym:it.sym, shares:it.shares, value: it.shares ? it.shares*s.price : null, ...s, key: buyBack?"BUYBACK":s.key, trimmed:it.trimmed });
       hcResults = out; hcRender();
     }
-    hcResults = out; store.set("sd2-hc-last", JSON.stringify(out)); hcRender();
+    hcResults = out; store.set("sd2-hc-last", JSON.stringify(out)); store.set("sd2-hc-hist", JSON.stringify(hcHist)); hcRender();
     $("hcProg").textContent = `Done — ${out.filter(r=>!r.error).length} of ${list.length} checked. Weekly bars as of ${out.find(r=>r.date)?.date||"—"}.`;
   } catch(e) {
     $("hcProg").textContent = "Error: " + e.message;
