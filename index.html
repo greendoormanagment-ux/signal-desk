@@ -564,7 +564,29 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
 
     // RS and Fundamentals come from Claude (web search)
     result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail:"Awaiting web data" };
-    result.checks.fundamentals = marketData?.fundamentalsCheck || { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:"Awaiting web data" };
+    // Fundamentals — rule-enforced: latest quarter EPS must be positive and ≥25% above the year-ago quarter
+    const fd = marketData?.fundamentals;
+    const num = v => (typeof v==="number" && isFinite(v)) ? v : (typeof v==="string" && v.trim()!=="" && isFinite(+v) ? +v : null);
+    if (fd) {
+      const eps = num(fd.epsLatest), prior = num(fd.epsYearAgo), rev = num(fd.revenueGrowthPct);
+      const revTxt = rev!==null ? ` · revenue ${rev>=0?"+":""}${rev.toFixed(0)}%` : "";
+      const q = fd.quarter ? ` (${fd.quarter})` : "";
+      if (eps===null) {
+        result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:`EPS not found — verify 25%+ EPS growth before buying${revTxt}` };
+      } else if (eps <= 0) {
+        result.checks.fundamentals = { score:0, status:"fail", detail:`Not profitable: EPS $${eps.toFixed(2)}${q}. Rule needs positive EPS growing 25%+${revTxt}` };
+      } else if (prior===null) {
+        result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:`EPS $${eps.toFixed(2)}${q}, year-ago EPS not found — verify growth${revTxt}` };
+      } else if (prior <= 0) {
+        result.checks.fundamentals = { score:SCORE_WEIGHTS.fundamentals, status:"pass", detail:`Turned profitable: EPS $${eps.toFixed(2)} vs $${prior.toFixed(2)} a year ago${q}${revTxt}` };
+      } else {
+        const g = (eps - prior) / prior * 100;
+        const pass = g >= 25;
+        result.checks.fundamentals = { score: pass?SCORE_WEIGHTS.fundamentals:(g>=15?Math.round(SCORE_WEIGHTS.fundamentals*0.3):0), status: pass?"pass":"fail", detail:`EPS ${g>=0?"+":""}${g.toFixed(0)}% ($${eps.toFixed(2)} vs $${prior.toFixed(2)})${q}${pass?"":" — rule needs 25%+"}${revTxt}` };
+      }
+    } else {
+      result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail: marketData ? "EPS data not returned — verify 25%+ EPS growth before buying" : "Checking earnings growth…" };
+    }
 
     // FIX 4: Earnings — no new buys within 14 days of a report
     const ne = marketData?.nextEarningsDate;
@@ -675,7 +697,7 @@ Hard stop: $${fmt(ruleResult.hardStop)}`;
 DO NOT change the rating, score, or any rule-engine output. The rules decide. You explain.
 
 Respond ONLY with raw JSON (no fences):
-{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentalsCheck":{"score":0-15,"status":"pass"|"neutral"|"fail","detail":"EPS growth %, revenue growth %, short"},"nextEarningsDate":"YYYY-MM-DD of the NEXT scheduled earnings report (search for it), or \"unknown\"","whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
+{"marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentals":{"quarter":"most recent reported quarter, e.g. Q2 2026","epsLatest":number (adjusted/non-GAAP diluted EPS for that quarter; negative if a loss),"epsYearAgo":number (same measure, same quarter one year earlier; negative if a loss),"revenueGrowthPct":number (year-over-year %)} — report the numbers only, do not judge pass/fail; use null for anything you cannot find,"nextEarningsDate":"YYYY-MM-DD of the NEXT scheduled earnings report (search for it), or \"unknown\"","whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
   : `You are Signal Desk's explanation engine for position management. Use web search to find current chart condition, any news, analyst sentiment. Explain the position status in plain English.
 Respond ONLY with raw JSON (no fences):
 {"explanation":"3-4 sentences: current situation, what the exit levels mean, what to watch","whatChanges":["trigger 1","trigger 2","trigger 3"],"asOf":"freshness"}`;
