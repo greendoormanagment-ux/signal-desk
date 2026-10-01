@@ -242,6 +242,7 @@ input,button{font-family:inherit}
 <div class="panel" id="explPanel">
   <div class="pt" id="explTitle">READ</div>
   <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="explText"></div>
+  <button class="btn-sm" id="aiForceBtn" style="display:none;margin-top:10px">RUN AI CHECK (≈1–2¢)</button>
 </div>
 
 <!-- log -->
@@ -513,7 +514,8 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
   if (mode === "entry") {
     // GATE 0: Market
     const mkt = marketData?.marketStatus || marketData?.market || "UNKNOWN";
-    result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt==="UNKNOWN" ? "Checking market…" : mkt+(marketData?.marketNote?" — "+marketData.marketNote:"") };
+    if (marketData?.aiSkipped) result.checks.market = { score:Math.round(SCORE_WEIGHTS.market*0.5), status:"neutral", detail:"Not checked — "+marketData.reason };
+    else result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt==="UNKNOWN" ? "Checking market…" : mkt+(marketData?.marketNote?" — "+marketData.marketNote:"") };
 
     // GATE 1: Trend (deterministic if we have MAs)
     if (d?.sma50 && d?.sma200) {
@@ -605,7 +607,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     }
 
     // RS and Fundamentals come from Claude (web search)
-    result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail:"Awaiting web data" };
+    result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : "Awaiting web data" };
     // Fundamentals — rule-enforced: latest quarter EPS must be positive and ≥25% above the year-ago quarter
     const fd = marketData?.fundamentals;
     const num = v => (typeof v==="number" && isFinite(v)) ? v : (typeof v==="string" && v.trim()!=="" && isFinite(+v) ? +v : null);
@@ -627,7 +629,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
         result.checks.fundamentals = { score: pass?SCORE_WEIGHTS.fundamentals:(g>=15?Math.round(SCORE_WEIGHTS.fundamentals*0.3):0), status: pass?"pass":"fail", detail:`EPS ${g>=0?"+":""}${g.toFixed(0)}% ($${eps.toFixed(2)} vs $${prior.toFixed(2)})${q}${pass?"":" — rule needs 25%+"}${revTxt}` };
       }
     } else {
-      result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail: marketData ? "EPS data not returned — verify 25%+ EPS growth before buying" : "Checking earnings growth…" };
+      result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : marketData ? "EPS data not returned — verify 25%+ EPS growth before buying" : "Checking earnings growth…" };
     }
 
     // FIX 4: Earnings — no new buys within 14 days of a report
@@ -639,7 +641,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
       else if (days > 14) result.checks.earnings = { score:0, status:"pass", detail:`Next earnings ${ne} (${days} days away)` };
       else result.checks.earnings = { score:0, status:"neutral", detail:`Last reported ${ne}` };
     } else {
-      result.checks.earnings = { score:0, status:"neutral", detail: marketData ? "Next earnings date not found — check before buying" : "Checking earnings date…" };
+      result.checks.earnings = { score:0, status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : marketData ? "Next earnings date not found — check before buying" : "Checking earnings date…" };
     }
 
     // HARD GATES — these override everything
@@ -650,6 +652,8 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     else if (result.checks.fundamentals.status==="fail") rating = "DONT_BUY";
     else if (result.checks.earnings.status==="fail") rating = "DONT_BUY";
     else if (marketData?.marketStatus==="CORRECTION") rating = "DONT_BUY";
+    // Never BUY without the AI checks (market, earnings date, fundamentals)
+    if (rating==="BUY" && marketData?.aiSkipped) { rating = "DONT_BUY"; result.aiBlock = true; }
     if (rating==="WATCH" && (result.checks.fundamentals.status==="fail" || result.checks.earnings.status==="fail" || marketData?.marketStatus==="CORRECTION")) rating = "DONT_BUY";
 
     // SELL signal
@@ -752,7 +756,7 @@ Respond ONLY with raw JSON (no fences):
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method:"POST",
       headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:8000,system:systemPrompt,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}]})
+      body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:4000,system:systemPrompt,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}]})
     });
     if (!res.ok) {
       const eb = await res.json().catch(()=>({}));
@@ -809,6 +813,7 @@ document.querySelectorAll(".act-btn").forEach(b => {
   };
 });
 
+$("aiForceBtn").onclick = () => { window.__forceAI = true; $("goBtn").click(); };
 $("sym").addEventListener("keydown", e=>{ if(e.key==="Enter") $("goBtn").click(); });
 
 $("goBtn").onclick = async () => {
@@ -840,8 +845,20 @@ $("goBtn").onclick = async () => {
     // 2. run rule engine (partial — RS + fundamentals filled by Claude)
     const ruleResult = runRuleEngine(d, null, mode, $("ep").value);
 
-    // 3. Claude explains + fills RS/fundamentals
-    const ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value);
+    // 3. Claude explains + fills RS/fundamentals — ONLY when it can change the outcome (saves cost)
+    const force = !!window.__forceAI; window.__forceAI = false;
+    const needAI = force || (mode==="entry" && ruleResult.rating!=="SELL" && ruleResult.checks.trend.status!=="fail" && ruleResult.checks.entry.status==="pass");
+    let ai;
+    if (!needAI) {
+      ai = { aiSkipped:true, reason: mode==="position" ? "skipped to save cost" : "skipped: price rules already fail" };
+    } else {
+      try { ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value); }
+      catch(err) {
+        const m = /credit balance/i.test(err.message) ? "no Anthropic credit left" : "AI unavailable";
+        ai = { aiSkipped:true, reason:m };
+        $("errbox").textContent = "AI check failed ("+err.message.slice(0,140)+"). Showing the price-rule result only."; show("errbox");
+      }
+    }
 
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
@@ -1021,13 +1038,16 @@ const render = (sym, d, rule, ai, mode) => {
     const lbl={market:"Market",trend:"Trend",entry:"Entry",momentum:"Momentum",volume:"Volume",rs:"Relative strength",fundamentals:"Fundamentals",earnings:"Earnings"};
     const gates=["market","trend","entry","fundamentals","earnings"];
     const failed=gates.filter(k=>rule.checks[k]?.status==="fail").map(k=>lbl[k]+": "+rule.checks[k].detail);
-    if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals, earnings).";
+    if (rule.aiBlock) why="Price rules PASS — but market, earnings date and fundamentals were not checked ("+(ai?.reason||"AI unavailable")+"). Do not buy until a full check passes: tap RUN AI CHECK below.";
+    else if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals, earnings).";
     else if (rule.rating==="WATCH") why="Watch list: "+rule.checks.entry.detail;
     else if (rule.rating==="SELL") why="Price is below the 200-day and the 50-day is below the 200-day — stage 4 downtrend.";
     else if (failed.length) why="Blocked by: "+failed.join(" · ");
     else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
   }
-  $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || "");
+  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (rule.aiBlock ? "" : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : "";
+  $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || skipNote);
+  $("aiForceBtn").style.display = ai?.aiSkipped ? "inline-block" : "none";
   $("explText").style.whiteSpace = "pre-line";
   show("explPanel");
 };
@@ -1236,7 +1256,7 @@ $("hcRevBtn").onclick = async () => {
     for (let turn=0; turn<5; turn++) {
       const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-5-5",max_tokens:8000,system:sys,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:Math.min(20,syms.length+4)}]})});
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:6000,system:sys,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:Math.min(10,syms.length+2)}]})});
       if (!res.ok) { const eb = await res.json().catch(()=>({})); throw new Error("API "+res.status+": "+(eb?.error?.message||res.statusText)); }
       const data = await res.json();
       text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n") || text;
