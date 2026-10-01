@@ -430,7 +430,7 @@ const fetchLiveData = async (sym) => {
       get(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${tdKey}`),
       get(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=1day&outputsize=320&apikey=${tdKey}`),
     ]);
-    if (!qRes?.close) { window.__tdErr = qRes?.message || "no quote returned"; return null; }
+    if (!qRes?.close) { window.__tdErr = (qRes?.message || "no quote returned").replace(/\*/g,""); return null; }
     const bars = (tsRes?.values||[]).map(v=>({date:v.datetime,o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+v.volume})).reverse(); // oldest → newest
     const ind = computeIndicators(bars);
     return {
@@ -643,7 +643,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     }
 
     // HARD GATES — these override everything
-    let rating = "BUY";
+    let rating = d ? "BUY" : "DONT_BUY";   // never BUY without real price data
     if (result.checks.market.status==="fail")        rating = "DONT_BUY";
     else if (result.checks.trend.status==="fail")    rating = "DONT_BUY";
     else if (result.checks.entry.status==="fail")    rating = result.watch ? "WATCH" : "DONT_BUY";
@@ -826,7 +826,12 @@ $("goBtn").onclick = async () => {
 
   try {
     // 1. fetch live data
+    window.__tdErr = null;
     const d = await fetchLiveData(sym);
+    // No price data (usually a mistyped ticker): stop here — no rating, and no Claude cost
+    if (!d && store.get("sd2-tkey")) {
+      throw new Error(`No price data for "${sym}"${window.__tdErr?" ("+window.__tdErr+")":""}. Check the ticker symbol (e.g. AAPL, not APPL). No AI call was made`);
+    }
     const conf = getConfidence(d);
     $("confidence").className = "confidence "+conf.level;
     $("confidence").innerHTML = `<strong>DATA CONFIDENCE: ${conf.label}</strong><br>${conf.reason}`;
@@ -864,7 +869,7 @@ $("goBtn").onclick = async () => {
     scanLog.unshift(entry); saveLog();
 
   } catch(e) {
-    $("errbox").textContent = "Error: "+e.message+" — try again in a few seconds.";
+    $("errbox").textContent = "Error: "+e.message+(/No price data/.test(e.message)?".":" — try again in a few seconds.");
     show("errbox");
   } finally {
     stopLoad(); $("goBtn").disabled=false;
