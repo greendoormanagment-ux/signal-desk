@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.1</title>
+<title>Signal Desk v2.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -134,7 +134,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.1 · Oct 2</span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.2 · Oct 2</span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -352,7 +352,22 @@ const store = {
 let scanLog = [];
 try { scanLog = JSON.parse(store.get("sd2-log") || "[]"); } catch(e){}
 const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300))); updateLogCount(); };
-const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans"; };
+const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans" + (window.sheetStatus||""); };
+// v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
+const SHEET_KEY = "gd-sd-7Kq4wP9x";
+const APP_VERSION = "v2.2";
+const sendToSheet = (h) => {
+  if (!h) return;
+  if (!h.id) h.id = Date.now() + "-" + h.symbol;
+  const payload = { key:SHEET_KEY, ID:h.id, "Date":h.ts, "Mode":h.mode, "Ticker":h.symbol, "Verdict":h.verdict,
+    "Score":h.score, "Price":h.price, "Setup":h.setup, "Market":h.market, "Entry Price":h.entryPrice,
+    "Gain %":h.gainPct, "Action":h.action||"", "Blocked by (rule)":h.blocked||"",
+    "Notes":(/iPhone|iPad/.test(navigator.userAgent)?"iPhone":"Mac") + " · " + APP_VERSION };
+  fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
+    .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
+    .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
+};
 updateLogCount();
 
 // ═══════════════════════════════════════════
@@ -804,7 +819,7 @@ document.querySelectorAll(".act-btn").forEach(b => {
   b.onclick = () => {
     if (!scanLog.length) return;
     scanLog[0].action = b.dataset.a;
-    saveLog();
+    saveLog(); sendToSheet(scanLog[0]);
     document.querySelectorAll(".act-btn").forEach(x => {
       const on = scanLog[0].action===x.dataset.a;
       const col = x.dataset.a==="Bought" ? "#2FBF71" : "#8A97A3";
@@ -885,8 +900,10 @@ $("goBtn").onclick = async () => {
       entryPrice: $("ep").value||"",
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
+      id: Date.now() + "-" + sym,
+      blocked: (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
     };
-    scanLog.unshift(entry); saveLog();
+    scanLog.unshift(entry); saveLog(); sendToSheet(entry);
 
   } catch(e) {
     $("errbox").textContent = "Error: "+e.message+(/No price data/.test(e.message)?".":" — try again in a few seconds.");
