@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.2</title>
+<title>Signal Desk v2.3</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -134,7 +134,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.2 · Oct 2</span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.3 · Oct 3</span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -311,6 +311,7 @@ const SCORE_WEIGHTS = {
 const META = {
   BUY:          { label:"BUY",          color:"#2FBF71", word:"Setup is valid — rules passed" },
   DONT_BUY:     { label:"DON'T BUY",   color:"#E8A33D", word:"Stand aside" },
+  CHECK_FIRST:  { label:"CHECK FIRST",  color:"#F2C14E", word:"Rules pass so far — verify the missing items before buying" },
   WATCH:        { label:"WATCH",        color:"#8FB6DA", word:"Near pivot — set an alert, buy only on a volume breakout" },
   SELL:         { label:"SELL",         color:"#E5484D", word:"Exit / avoid" },
   HOLD:         { label:"HOLD",         color:"#2FBF71", word:"Trend intact — trail your stop" },
@@ -356,7 +357,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.2";
+const APP_VERSION = "v2.3";
 const sendToSheet = (h) => {
   if (!h) return;
   if (!h.id) h.id = Date.now() + "-" + h.symbol;
@@ -672,6 +673,17 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     else if (marketData?.marketStatus==="CORRECTION") rating = "DONT_BUY";
     // Never BUY without the AI checks (market, earnings date, fundamentals)
     if (rating==="BUY" && marketData?.aiSkipped) { rating = "DONT_BUY"; result.aiBlock = true; }
+    // v2.3 FIX 5: an unverified hard gate ("–") must not count as a pass
+    if (rating==="BUY") {
+      const lblU={market:"Market",trend:"Trend",entry:"Entry",fundamentals:"Fundamentals",earnings:"Earnings date"};
+      // PRESSURE market and "above 200-day but not above 50-day" are real readings (caution), not missing data — only missing data counts
+      const unv=[];
+      if (result.checks.trend?.status==="neutral" && !(d?.sma50 && d?.sma200)) unv.push("trend");
+      if (result.checks.entry?.status==="neutral" && /estimate/i.test(result.checks.entry.detail||"")) unv.push("entry");
+      if (result.checks.fundamentals?.status==="neutral") unv.push("fundamentals");
+      if (result.checks.earnings?.status==="neutral") unv.push("earnings");
+      if (unv.length) { rating = "CHECK_FIRST"; result.unverified = unv.map(k=>lblU[k]+": "+result.checks[k].detail); }
+    }
     if (rating==="WATCH" && (result.checks.fundamentals.status==="fail" || result.checks.earnings.status==="fail" || marketData?.marketStatus==="CORRECTION")) rating = "DONT_BUY";
 
     // SELL signal
@@ -901,7 +913,7 @@ $("goBtn").onclick = async () => {
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
       id: Date.now() + "-" + sym,
-      blocked: (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
+      blocked: (finalRule.rating==="CHECK_FIRST") ? "UNVERIFIED — " + (finalRule.unverified||[]).join(" · ") : (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
     };
     scanLog.unshift(entry); saveLog(); sendToSheet(entry);
 
@@ -952,7 +964,7 @@ const render = (sym, d, rule, ai, mode) => {
   $("stampWord").textContent=meta.word;
   // v2.1: show which kind of buy this is
   const sbadge=$("setupBadge");
-  if (mode==="entry" && rule.rating==="BUY" && (rule.setupType==="BREAKOUT"||rule.setupType==="PULLBACK")) {
+  if (mode==="entry" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST") && (rule.setupType==="BREAKOUT"||rule.setupType==="PULLBACK")) {
     const isBO = rule.setupType==="BREAKOUT";
     sbadge.textContent = isBO ? "BREAKOUT BUY" : "PULLBACK BUY · 50-day";
     sbadge.style.cssText = isBO
@@ -1068,6 +1080,7 @@ const render = (sym, d, rule, ai, mode) => {
     const gates=["market","trend","entry","fundamentals","earnings"];
     const failed=gates.filter(k=>rule.checks[k]?.status==="fail").map(k=>lbl[k]+": "+rule.checks[k].detail);
     if (rule.aiBlock) why="Price rules PASS — but market, earnings date and fundamentals were not checked ("+(ai?.reason||"AI unavailable")+"). Do not buy until a full check passes: tap RUN AI CHECK below.";
+    else if (rule.rating==="CHECK_FIRST") why="Not a BUY yet. Every rule that could be checked passed, but these could not be verified: "+(rule.unverified||[]).join(" · ")+". Look them up yourself — if they pass (earnings 15+ days away, EPS growth 25%+), treat it as a BUY.";
     else if (rule.rating==="BUY") why="All hard gates passed (market, trend, entry, fundamentals, earnings).";
     else if (rule.rating==="WATCH") why="Watch list: "+rule.checks.entry.detail;
     else if (rule.rating==="SELL") why="Price is below the 200-day and the 50-day is below the 200-day — stage 4 downtrend.";
