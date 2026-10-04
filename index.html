@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.4</title>
+<title>Signal Desk v2.4.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.4 · Oct 3</span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.4.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -370,7 +370,16 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.4";
+const APP_VERSION = "v2.4.1";
+// v2.4.1: show when this version was published (from GitHub's Last-Modified header)
+(() => {
+  try {
+    const lm = new Date(document.lastModified);
+    if (isNaN(lm) || Math.abs(Date.now() - lm.getTime()) < 5000) return; // no header = browser invents "now"; skip
+    const txt = lm.toLocaleDateString("en-US",{month:"short",day:"numeric"}) + ", " + lm.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    const el = document.getElementById("verDate"); if (el) el.textContent = " · updated " + txt;
+  } catch(e) {}
+})();
 const sendToSheet = (h) => {
   if (!h) return;
   if (!h.id) h.id = Date.now() + "-" + h.symbol;
