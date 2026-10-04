@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.4.1</title>
+<title>Signal Desk v2.4.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.4.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.4.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -370,7 +370,14 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.4.1";
+const APP_VERSION = "v2.4.2";
+// v2.4.2: timestamps in Eastern time (handles EST/EDT automatically)
+const etStamp = (dt) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(dt).map(x=>[x.type,x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour==="24"?"00":p.hour}:${p.minute} ET`;
+};
+// older log entries were saved in UTC without a label — show them in Eastern too
+const showTs = (ts) => { if (!ts || /ET$/.test(ts)) return ts||""; const d=new Date(ts.replace(" ","T")+":00Z"); return isNaN(d)?ts:etStamp(d); };
 // v2.4.1: show when this version was published (from GitHub's Last-Modified header)
 (() => {
   try {
@@ -923,7 +930,7 @@ $("goBtn").onclick = async () => {
 
     // 6. log
     const entry = {
-      ts: new Date().toISOString().slice(0,16).replace("T"," "),
+      ts: etStamp(new Date()),
       mode: mode==="position"?"Position":"Entry",
       symbol: sym,
       verdict: mode==="position"?finalRule.status:finalRule.rating,
@@ -1200,7 +1207,7 @@ const renderLog = () => {
       <span style="color:var(--muted);min-width:54px">$${h.price}</span>
       ${act}
       <span style="color:var(--dim);flex:1;font-size:9.5px">${h.mode}${h.setup?" · "+h.setup:""}${h.market?" · "+h.market:""}${h.gainPct?" · "+h.gainPct+"% vs entry":""}</span>
-      <span style="color:var(--dimmer);font-size:9px">${h.ts}</span>
+      <span style="color:var(--dimmer);font-size:9px">${showTs(h.ts)}</span>
     </div>`;
   });
 };
@@ -1208,7 +1215,7 @@ const renderLog = () => {
 $("csvBtn").onclick = () => {
   const escCSV = v => typeof v==="string"&&(v.includes(",")||v.includes('"'))? '"'+v.replace(/"/g,'""')+'"' : (v||"");
   const head="Date,Mode,Ticker,Verdict,Score,Price,Setup,Market,EntryPrice,GainPct,Action";
-  const rows=scanLog.map(h=>[h.ts,h.mode,h.symbol,h.verdict,h.score,h.price,h.setup,h.market,h.entryPrice,h.gainPct,h.action||""].map(escCSV).join(","));
+  const rows=scanLog.map(h=>[showTs(h.ts),h.mode,h.symbol,h.verdict,h.score,h.price,h.setup,h.market,h.entryPrice,h.gainPct,h.action||""].map(escCSV).join(","));
   navigator.clipboard.writeText([head,...rows].join("\n"))
     .then(()=>{ $("csvBtn").textContent="COPIED ✓"; setTimeout(()=>$("csvBtn").textContent="COPY CSV",2000); })
     .catch(()=>alert("Couldn't copy — try a different browser."));
