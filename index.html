@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.5</title>
+<title>Signal Desk v2.5.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.5<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.5.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -168,6 +168,7 @@ input,button{font-family:inherit}
   <button class="tab" data-m="position"><span class="tl">POSITION REVIEW</span><span class="ts">already own it</span></button>
   <button class="tab" data-m="log"><span class="tl">LOG</span><span class="ts" id="logCount">0 scans</span></button>
   <button class="tab" data-m="health"><span class="tl">HOLDINGS</span><span class="ts">stage health check</span></button>
+  <a class="tab" href="https://docs.google.com/spreadsheets/d/1519VPFABZHBwiw3v15KOxi8EwcbY-bEko-_NHh3sHq4/edit#gid=1070003684" target="_blank" rel="noopener" style="text-decoration:none"><span class="tl">SHEET ↗</span><span class="ts">decision log</span></a>
 </div>
 
 <div class="row" id="inputRow">
@@ -371,7 +372,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.5";
+const APP_VERSION = "v2.5.1";
 // v2.5: sector awareness — read open trades (ticker, type, sector) from the Decision Log
 const SECTORS = ["Basic Materials","Communication Services","Consumer Cyclical","Consumer Defensive","Energy","Financial","Healthcare","Industrials","Real Estate","Technology","Utilities"];
 const normSector = s => { const x=String(s||"").toLowerCase().replace(/[^a-z]/g,""); if(!x) return "";
@@ -466,10 +467,10 @@ $("saveKeys").onclick = async () => {
 // TABS
 // ═══════════════════════════════════════════
 let mode = "entry";
-document.querySelectorAll(".tab").forEach(b => {
+document.querySelectorAll(".tab[data-m]").forEach(b => {
   b.onclick = () => {
     mode = b.dataset.m;
-    document.querySelectorAll(".tab").forEach(x => x.className="tab"+(x===b?" act":""));
+    document.querySelectorAll(".tab[data-m]").forEach(x => x.className="tab"+(x===b?" act":""));
     $("inputRow").style.display = (mode==="log"||mode==="health")?"none":"flex";
     $("hcArea").style.display = mode==="health"?"block":"none";
     if (mode==="health") { hideAll(); hide("errbox"); }
