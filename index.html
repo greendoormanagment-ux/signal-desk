@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.5.1</title>
+<title>Signal Desk v2.5.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.5.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.5.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -372,7 +372,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.5.1";
+const APP_VERSION = "v2.5.2";
 // v2.5: sector awareness — read open trades (ticker, type, sector) from the Decision Log
 const SECTORS = ["Basic Materials","Communication Services","Consumer Cyclical","Consumer Defensive","Energy","Financial","Healthcare","Industrials","Real Estate","Technology","Utilities"];
 const normSector = s => { const x=String(s||"").toLowerCase().replace(/[^a-z]/g,""); if(!x) return "";
@@ -510,6 +510,7 @@ const fetchLiveData = async (sym) => {
       marketState: qRes.is_market_open ? "REGULAR" : "CLOSED",
       datetime:  qRes.datetime || new Date().toDateString(),
       ...ind,
+      bars:      bars.map(x=>({date:x.date,h:x.h,c:x.c})),
       source:    "Twelve Data",
       freshness: "real-time",
     };
@@ -570,7 +571,14 @@ const getConfidence = (d) => {
 // ═══════════════════════════════════════════
 // DETERMINISTIC RULE ENGINE
 // ═══════════════════════════════════════════
-const runRuleEngine = (d, marketData, mode, entryPrice) => {
+// v2.5.2: parse "9/29/26", "9/29/2026" or "2026-09-29" (no browser guessing)
+const parseEntryDate = (s) => {
+  s = String(s||"").trim(); if (!s) return null; let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return new Date(+m[1], +m[2]-1, +m[3]);
+  if ((m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/))) { let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
+  return null;
+};
+const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
   // marketData comes from Claude's web search — market condition only
   // d = live price data from Twelve Data
   const result = { checks:{}, setupType:"NONE", entryZone:null, pivot:null, stopLoss:null, noMansLand:false };
@@ -746,10 +754,32 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
     const gainPct = ((price - ep) / ep) * 100;
     result.gainPct = gainPct;
 
+    // v2.5.2 FIX: trailing stop measured from the highest price SINCE ENTRY (not the 52-week high).
+    // With an entry date: highest daily high on/after that date. Without one: the higher of entry price and today's price.
+    const ed = parseEntryDate(entryDateStr);
+    let hiSince = Math.max(ep || 0, price);
+    if (ed && Array.isArray(d?.bars)) {
+      const since = d.bars.filter(x => { const t=new Date(x.date+"T00:00:00"); return t >= ed; });
+      if (since.length) hiSince = Math.max(hiSince, ...since.map(x=>x.h));
+      result.entryDateUsed = true;
+    }
+    result.hiSinceEntry = hiSince;
+    const hard = ep * 0.92;
+    const chand = (d?.atr) ? hiSince - 3 * d.atr : null;
+    // the trail only matters once it is ABOVE the hard stop; it can never sit above today's price
+    if (chand && chand > hard) {
+      if (chand < price) result.chandelierStop = chand;
+      else result.chandelierHit = true;          // price already fell 3×ATR from its post-entry high
+    }
+
     // Loss cut — absolute
     if (gainPct <= -7.5) {
       result.status = "SELL_ALL";
       result.sellReason = "7-8% loss rule triggered";
+    }
+    else if (result.chandelierHit) {
+      result.status = "SELL_ALL";
+      result.sellReason = "Trailing stop hit — price fell 3×ATR from its high since entry";
     }
     // Profit target
     else if (gainPct >= 20) {
@@ -763,11 +793,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice) => {
       result.status = "HOLD";
     }
 
-    // Chandelier stop
-    if (d?.atr && d?.high52) {
-      result.chandelierStop = d.high52 - (3 * d.atr);
-    }
-    result.hardStop = ep * 0.92;
+    result.hardStop = hard;
     result.sma50    = d?.sma50 || null;
     result.score    = 50; // position review score is less meaningful
   }
@@ -919,7 +945,7 @@ $("goBtn").onclick = async () => {
     show("confidence");
 
     // 2. run rule engine (partial — RS + fundamentals filled by Claude)
-    const ruleResult = runRuleEngine(d, null, mode, $("ep").value);
+    const ruleResult = runRuleEngine(d, null, mode, $("ep").value, $("ed").value);
 
     // 3. Claude explains + fills RS/fundamentals — ONLY when it can change the outcome (saves cost)
     const force = !!window.__forceAI; window.__forceAI = false;
@@ -939,7 +965,7 @@ $("goBtn").onclick = async () => {
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
     if (mode==="entry") {
-      finalRule = runRuleEngine(d, ai, mode, $("ep").value);
+      finalRule = runRuleEngine(d, ai, mode, $("ep").value, $("ed").value);
     }
 
     // 5. render everything
@@ -1024,10 +1050,16 @@ const buildGuide = (sym, d, rule, ai, mode) => {
     }
   } else {
     const st = rule.status;
-    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stop) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
-    else if (st==="TIGHTEN_STOP") { L.push(`<b>Raise your stop</b> to <b>$${fmt(stop)}</b> today and update your price alert.`); L.push(`Never move a stop down.`); }
+    const stopOk = stop && price && stop < price;
+    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
+    else if (st==="TIGHTEN_STOP") {
+      L.push(`<b>Warning:</b> price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening.`);
+      if (rule.chandelierStop) L.push(`Make sure your stop is at least <b>$${fmt(rule.chandelierStop)}</b> (trail from your high since entry). If yours is already higher, leave it.`);
+      else L.push(`Keep your existing stop (no lower than the hard stop <b>$${fmt(rule.hardStop)}</b>). Don't raise it above today's price.`);
+      L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
+    }
     else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
-    else { L.push(`<b>Exit.</b> The sell rule triggered.`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
+    else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
   }
   // cautions — information only, never change the rating
   const C = [];
@@ -1166,7 +1198,7 @@ const render = (sym, d, rule, ai, mode) => {
     if (rule.stopLoss)  rungs.push(["STOP LOSS","#E5484D22","var(--red)","$"+fmt(rule.stopLoss),rule.stopCapped?"(capped at 8% below today's price — place on fill)":"(7-8% rule — place immediately on fill)"]);
     $("planTitle").textContent="TRADE PLAN";
   } else {
-    if (rule.chandelierStop) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),"(high − 3×ATR)"]);
+    if (rule.chandelierStop) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),(rule.entryDateUsed?"(high since entry − 3×ATR)":"(entry/price high − 3×ATR · add entry date for a true trail)")]);
     if (d?.sma50)            rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
     if (rule.hardStop)       rungs.push(["HARD STOP","#E5484D22","var(--red)","$"+fmt(rule.hardStop),"(7-8% from entry — no exceptions)"]);
     $("planTitle").textContent="EXIT LADDER";
