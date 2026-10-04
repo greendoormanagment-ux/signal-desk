@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.3</title>
+<title>Signal Desk v2.4</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -124,6 +124,13 @@ input,button{font-family:inherit}
 .log-row:first-child{border-top:none}
 .log-badge{font-size:9px;font-weight:700;letter-spacing:1px;border-radius:4px;padding:3px 7px}
 /* eight week */
+.guide{border-color:#2FBF7155}
+.guide ol{margin:6px 0 0 18px;padding:0;font-size:13px;line-height:1.55;color:var(--text)}
+.guide li{margin-bottom:5px}
+.guide b{color:var(--text)}
+.guide .gsize{margin-top:10px;font-size:12px;color:var(--dim)}
+.guide .gsize a{color:var(--blue);cursor:pointer;text-decoration:underline}
+.guide .gwarn{margin-top:10px;font-size:12px;line-height:1.5;color:var(--amber);background:#E8A33D14;border:1px solid #E8A33D44;border-radius:6px;padding:8px 10px}
 .eight{margin-top:10px;font-size:11px;color:var(--amber);background:#E8A33D14;border:1px solid #E8A33D44;border-radius:6px;padding:9px 11px;line-height:1.5;display:none}
 /* disclaimer */
 .disc{font-size:9.5px;color:var(--dimmer);line-height:1.6;margin-top:20px;border-top:1px solid var(--border);padding-top:12px}
@@ -134,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.3 · Oct 3</span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.4 · Oct 3</span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -220,6 +227,12 @@ input,button{font-family:inherit}
 <div class="act-row" id="actRow">
   <button class="act-btn" data-a="Bought">I BOUGHT IT</button>
   <button class="act-btn" data-a="Passed">I PASSED</button>
+</div>
+
+<!-- v2.4: what to do now -->
+<div class="panel guide" id="guidePanel">
+  <div class="pt">WHAT TO DO NOW</div>
+  <div id="guideBody"></div>
 </div>
 
 <!-- trade plan / exit ladder -->
@@ -338,7 +351,7 @@ const show = id => { const el=$(id); if(el) el.style.display="block"; };
 const hide = id => { const el=$(id); if(el) el.style.display="none"; };
 const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
 const hideAll = () => {
-  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","planPanel","chkPanel","changePanel","explPanel"].forEach(hide);
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel"].forEach(hide);
   $("actRow").style.display="none";
 };
 
@@ -357,7 +370,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.3";
+const APP_VERSION = "v2.4";
 const sendToSheet = (h) => {
   if (!h) return;
   if (!h.id) h.id = Date.now() + "-" + h.symbol;
@@ -928,6 +941,72 @@ $("goBtn").onclick = async () => {
 // ═══════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════
+// ── v2.4: WHAT TO DO NOW ─────────────────────────────────────────
+const riskDollars = () => { const v = parseFloat(store.get("sd2-risk")); return v > 0 ? v : 1000; };
+window.setRisk = () => {
+  const v = prompt("Dollars to risk per trade (1% of your test account, e.g. 1000):", riskDollars());
+  if (v === null) return; const n = parseFloat(String(v).replace(/[$,]/g,""));
+  if (n > 0) { store.set("sd2-risk", String(n)); alert("Saved. Re-run the scan to update the share count."); }
+};
+const fmtVol = v => v>=1e6 ? (v/1e6).toFixed(2)+"M" : v>=1e3 ? Math.round(v/1e3)+"K" : String(Math.round(v||0));
+const buildGuide = (sym, d, rule, ai, mode) => {
+  const L = []; const price = d?.price;
+  const today = new Date().toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"2-digit"});
+  const risk = riskDollars();
+  const stop = mode==="entry" ? rule.stopLoss : (rule.chandelierStop || rule.hardStop);
+  const per = (price && rule.stopLoss) ? price - rule.stopLoss : 0;
+  const shares = per > 0 ? Math.floor(risk / per) : 0;
+  const sizeLine = (mode==="entry" && shares>0)
+    ? `<div class="gsize">Size: <b>${shares} shares</b> (≈$${Math.round(shares*price).toLocaleString()}) risks $${risk.toLocaleString()} to the $${fmt(rule.stopLoss)} stop. <a onclick="setRisk()">change risk $</a></div>` : "";
+  const tradeRow = (type) => `add a Trades row: <b>${type}</b> · ${sym} · ${rule.setupType||""} · score ${rule.score} · ${ai?.marketStatus||"market"} · ${today} · entry <b>$${fmt(price)}</b> · stop <b>$${fmt(rule.stopLoss)}</b> · <b>${shares}</b> shares.`;
+  if (mode==="entry") {
+    const r = rule.rating;
+    if (r==="BUY") {
+      L.push(`<b>Decide: real money or paper?</b>`);
+      L.push(`<b>Real:</b> tap I BOUGHT IT only after you buy. Your 24-hour rule: rescan tomorrow — if it's still BUY and inside the buy zone, buy ${shares||"the sized"} shares and place the <b>$${fmt(rule.stopLoss)}</b> stop the same day.`);
+      L.push(`<b>Paper:</b> tap I PASSED, then ${tradeRow("Paper")} Rules Followed = Y.`);
+      L.push(`Set a price alert at the stop <b>$${fmt(rule.stopLoss)}</b>, and add ${sym} to your Monday/Thursday Position Reviews.`);
+    } else if (r==="CHECK_FIRST") {
+      L.push(`<b>Not a BUY until you verify.</b> Open finviz.com and search ${sym}.`);
+      L.push(`<b>EPS Q/Q</b> must be <b>25% or higher</b>.`);
+      L.push(`<b>Earnings</b> must be <b>15+ days away</b>. A date in the past means the next one isn't announced — check the company's investor-relations page, or use last year's same-quarter date as an estimate.`);
+      L.push(`<b>Both pass:</b> treat it as a BUY — real (rescan tomorrow) or paper (tap I PASSED, ${tradeRow("Paper")} Note "verified").`);
+      L.push(`<b>Either fails or can't be confirmed:</b> tap I PASSED. Nothing to log.`);
+    } else if (r==="WATCH") {
+      const need = d?.avgVolume ? Math.ceil(d.avgVolume*1.4) : null;
+      L.push(`Tap <b>I PASSED</b>. Don't log a trade — a WATCH isn't a buy.`);
+      if (rule.pivot) L.push(`Set a price alert at the pivot <b>$${fmt(rule.pivot)}</b>.`);
+      L.push(`Breakout = a <b>close above $${fmt(rule.pivot)}</b>${need?` on <b>${fmtVol(need)}+ shares</b>`:" on 1.4× normal volume"}. If the alert fires, rescan near the close (after 3:30 PM ET).`);
+      if (rule.pivot) L.push(`Don't chase: the buy zone ends at <b>$${fmt(rule.pivot*1.05)}</b> (5% above the pivot).`);
+      if (!ai) L.push(`Earnings and fundamentals aren't checked yet — they run automatically on the breakout rescan (or tap RUN AI CHECK now).`);
+    } else if (r==="SELL") {
+      L.push(`Downtrend — tap <b>I PASSED</b>. Nothing to log.`);
+      L.push(`If you already own ${sym}, run it in <b>POSITION REVIEW</b> with your buy price.`);
+    } else {
+      const lbl={market:"Market",trend:"Trend",entry:"Entry",fundamentals:"Fundamentals",earnings:"Earnings"};
+      const first = ["market","trend","entry","fundamentals","earnings"].find(k=>rule.checks?.[k]?.status==="fail");
+      L.push(`Tap <b>I PASSED</b>. Nothing to log.`);
+      if (first) L.push(`Blocked by <b>${lbl[first]}</b>: ${rule.checks[first].detail}`);
+      if (rule.setupType==="EXTENDED") L.push(`It already ran past its buy point. Rescan in a week or two for a pullback or a new base.`);
+    }
+  } else {
+    const st = rule.status;
+    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stop) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
+    else if (st==="TIGHTEN_STOP") { L.push(`<b>Raise your stop</b> to <b>$${fmt(stop)}</b> today and update your price alert.`); L.push(`Never move a stop down.`); }
+    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
+    else { L.push(`<b>Exit.</b> The sell rule triggered.`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
+  }
+  // cautions — information only, never change the rating
+  const C = [];
+  if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
+  if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
+  if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
+  if (ai?.nextEarningsDate) { const days=Math.round((new Date(ai.nextEarningsDate)-new Date())/864e5); if (days>=0 && days<=21) C.push(`Earnings in <b>${days} days</b> (${ai.nextEarningsDate}) — expect a big move around the report.`); }
+  if (mode==="entry" && ai?.marketStatus==="PRESSURE" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST")) C.push(`Market under <b>PRESSURE</b> — buys fail more often; consider paper.`);
+  const warn = C.length ? `<div class="gwarn">⚠ ${C.join("<br>⚠ ")}</div>` : "";
+  return `<ol>${L.map(x=>`<li>${x}</li>`).join("")}</ol>${sizeLine}${warn}`;
+};
+
 const render = (sym, d, rule, ai, mode) => {
   const key  = mode==="position" ? rule.status : rule.rating;
   const meta = META[key] || META.DONT_BUY;
@@ -1029,6 +1108,9 @@ const render = (sym, d, rule, ai, mode) => {
     document.querySelectorAll(".act-btn").forEach(x=>{x.style.borderColor="var(--border2)";x.style.background="var(--bg3)";x.style.color="var(--dim)";x.textContent=x.dataset.a==="Bought"?"I BOUGHT IT":"I PASSED";});
     $("actRow").style.display="flex";
   }
+
+  // v2.4: plain-language next steps
+  try { $("guideBody").innerHTML = buildGuide(sym, d, rule, ai, mode); show("guidePanel"); } catch(e) { console.error("guide", e); }
 
   // trade plan / exit ladder
   const rungs=[];
