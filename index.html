@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.6</title>
+<title>Signal Desk v2.6.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.6<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.6.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -372,7 +372,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.6";
+const APP_VERSION = "v2.6.1";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -384,7 +384,7 @@ const scanResearch = (d, rule, ai) => {
   out.pct200 = (p && d?.sma200) ? r1((p/d.sma200-1)*100) : "";
   out.pctPivot = (p && rule?.pivot) ? r1((p/rule.pivot-1)*100) : "";
   out.rsi = (typeof d?.rsi==="number") ? r1(d.rsi) : "";
-  out.volRatio = (d?.volume && d?.avgVolume) ? Math.round(d.volume/d.avgVolume*100)/100 : "";
+  out.volRatio = (!d?.volumePartial && d?.volume && d?.avgVolume) ? Math.round(d.volume/d.avgVolume*100)/100 : "";
   const fd = ai?.fundamentals || {};
   const eps = parseFloat(fd.epsLatest), prior = parseFloat(fd.epsYearAgo);
   out.epsGrowth = (isFinite(eps)&&isFinite(prior)) ? (prior>0 ? r1((eps-prior)/prior*100) : (eps>0 ? "turnaround" : "loss")) : "";
@@ -524,6 +524,11 @@ const fetchLiveData = async (sym) => {
     ]);
     if (!qRes?.close) { window.__tdErr = (qRes?.message || "no quote returned").replace(/\*/g,""); return null; }
     const bars = (tsRes?.values||[]).map(v=>({date:v.datetime,o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+v.volume})).reverse(); // oldest → newest
+    // v2.6.1 FIX: while the market is open, today's daily bar is incomplete (and its volume comes from a partial feed).
+    // Drop it so breakouts are judged only on COMPLETED closes; the live price still comes from the quote.
+    const todayET = etStamp(new Date()).slice(0,10);
+    const marketOpen = !!qRes?.is_market_open;
+    if (marketOpen && bars.length && String(bars[bars.length-1].date).slice(0,10) === todayET) bars.pop();
     const ind = computeIndicators(bars);
     return {
       price:     parseFloat(qRes.close),
@@ -535,6 +540,7 @@ const fetchLiveData = async (sym) => {
       name:      qRes.name || sym,
       exchange:  qRes.exchange || "",
       marketState: qRes.is_market_open ? "REGULAR" : "CLOSED",
+      volumePartial: marketOpen,
       datetime:  qRes.datetime || new Date().toDateString(),
       ...ind,
       bars:      bars.map(x=>({date:x.date,h:x.h,c:x.c})),
@@ -650,6 +656,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
           result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.25), status:"fail", detail:`Broke pivot $${fmt(pivot)} on only ${bo.volRatio?bo.volRatio.toFixed(1):"?"}× avg volume (need ${volNeed}×) — low-volume breakouts fail often` };
         } else {
           result.setupType = "INTRADAY";
+          result.watch = true;   // v2.6.1: above the pivot intraday = a breakout in progress, judged at the close
           result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"fail", detail:`Trading above pivot $${fmt(pivot)} but hasn't CLOSED above it yet — wait for the close and check volume` };
         }
       } else if (nearPullback) {
@@ -695,7 +702,9 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
     }
 
     // GATE 4: Volume
-    if (d?.volume && d?.avgVolume && d.avgVolume > 0) {
+    if (d?.volumePartial) {
+      result.checks.volume = { score:Math.round(SCORE_WEIGHTS.volume*0.5), status:"neutral", detail:"Market open — today's volume is partial in this data feed. Judge volume after 4 PM, or check Volume / Rel Volume on Finviz." };
+    } else if (d?.volume && d?.avgVolume && d.avgVolume > 0) {
       const volRatio = d.volume / d.avgVolume;
       const pullbackOk = result.setupType==="PULLBACK" && volRatio < 1.0;
       const breakoutOk = result.setupType==="BREAKOUT";   // breakout-day volume enforced in Entry gate
@@ -1071,6 +1080,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       L.push(`<b>Either fails or can't be confirmed:</b> tap I PASSED. Nothing to log.`);
     } else if (r==="WATCH") {
       const need = d?.avgVolume ? Math.ceil(d.avgVolume*1.4) : null;
+      if (rule.setupType==="INTRADAY") L.push(`<b>Above the pivot right now — but a breakout only counts at the CLOSE.</b> The app's volume is partial during market hours: check <b>Volume</b> on Finviz, or rescan after 4 PM.`);
       L.push(`Tap <b>I PASSED</b>. Don't log a trade — a WATCH isn't a buy.`);
       if (rule.pivot) L.push(`Set a price alert at the pivot <b>$${fmt(rule.pivot)}</b>.`);
       L.push(`Breakout = a <b>close above $${fmt(rule.pivot)}</b>${need?` on <b>${fmtVol(need)}+ shares</b>`:" on 1.4× normal volume"}. If the alert fires, rescan near the close (after 3:30 PM ET).`);
