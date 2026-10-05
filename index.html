@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.5.2</title>
+<title>Signal Desk v2.5.3</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.5.2<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.5.3<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -372,7 +372,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.5.2";
+const APP_VERSION = "v2.5.3";
 // v2.5: sector awareness — read open trades (ticker, type, sector) from the Decision Log
 const SECTORS = ["Basic Materials","Communication Services","Consumer Cyclical","Consumer Defensive","Energy","Financial","Healthcare","Industrials","Real Estate","Technology","Utilities"];
 const normSector = s => { const x=String(s||"").toLowerCase().replace(/[^a-z]/g,""); if(!x) return "";
@@ -781,6 +781,16 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
       result.status = "SELL_ALL";
       result.sellReason = "Trailing stop hit — price fell 3×ATR from its high since entry";
     }
+    // v2.5.3 FIX: Weinstein Stage 4 — same test Entry Scan uses (price < 200-day AND 50-day < 200-day)
+    else if (d?.sma50 && d?.sma200 && price < d.sma200 && d.sma50 < d.sma200) {
+      result.status = "SELL_ALL";
+      result.sellReason = `Stage 4 downtrend — price $${fmt(price)} is below the 200-day ($${fmt(d.sma200)}) and the 50-day ($${fmt(d.sma50)}) is below the 200-day`;
+    }
+    // Below the 200-day but 50-day still above it = trend breaking (Stage 3 warning)
+    else if (d?.sma200 && price < d.sma200) {
+      result.status = "TIGHTEN_STOP";
+      result.trendNote = `Price is below its 200-day line ($${fmt(d.sma200)}) — a Stage 3/4 warning`;
+    }
     // Profit target
     else if (gainPct >= 20) {
       result.status = "SCALE_OUT";
@@ -1053,7 +1063,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
     const stopOk = stop && price && stop < price;
     if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
     else if (st==="TIGHTEN_STOP") {
-      L.push(`<b>Warning:</b> price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening.`);
+      L.push(`<b>Warning:</b> ${rule.trendNote || `price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening`}.`);
       if (rule.chandelierStop) L.push(`Make sure your stop is at least <b>$${fmt(rule.chandelierStop)}</b> (trail from your high since entry). If yours is already higher, leave it.`);
       else L.push(`Keep your existing stop (no lower than the hard stop <b>$${fmt(rule.hardStop)}</b>). Don't raise it above today's price.`);
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
@@ -1063,6 +1073,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   }
   // cautions — information only, never change the rating
   const C = [];
+  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); }
   if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
   if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
   if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
