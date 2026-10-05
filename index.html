@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.5.3</title>
+<title>Signal Desk v2.5.4</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.5.3<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.5.4<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -372,7 +372,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.5.3";
+const APP_VERSION = "v2.5.4";
 // v2.5: sector awareness — read open trades (ticker, type, sector) from the Decision Log
 const SECTORS = ["Basic Materials","Communication Services","Consumer Cyclical","Consumer Defensive","Energy","Financial","Healthcare","Industrials","Real Estate","Technology","Utilities"];
 const normSector = s => { const x=String(s||"").toLowerCase().replace(/[^a-z]/g,""); if(!x) return "";
@@ -1121,6 +1121,8 @@ const render = (sym, d, rule, ai, mode) => {
   if (d) { src.textContent="● LIVE · TWELVE DATA"; src.style.color="var(--green)"; }
   else   { src.textContent="⚠ WEB DATA — verify price"; src.style.color="var(--amber)"; }
   $("tAsOf").textContent = ai?.asOf||"";
+  // v2.5.4: the "vs entry" line belongs to Position Review only — hide it otherwise so no stale value lingers
+  $("tGain").style.display="none"; $("tGain").textContent="";
   if (mode==="position" && typeof rule.gainPct==="number") {
     const g=$("tGain"); g.style.display="block";
     g.textContent=fmtPct(rule.gainPct)+" vs entry $"+fmt(parseFloat($("ep").value));
