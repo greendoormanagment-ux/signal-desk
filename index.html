@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.6.1</title>
+<title>Signal Desk v2.6.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.6.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.6.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -175,6 +175,7 @@ input,button{font-family:inherit}
   <input class="inp ticker" id="sym" placeholder="TICKER" maxlength="6">
   <input class="inp sm" id="ep" placeholder="Entry $" inputmode="decimal" style="display:none">
   <input class="inp sm" id="ed" placeholder="Date (opt)" style="display:none;font-size:12px">
+  <input class="inp sm" id="cs" placeholder="Your stop $" inputmode="decimal" style="display:none;font-size:12px">
   <button class="btn-go" id="goBtn">ANALYZE</button>
 </div>
 
@@ -372,7 +373,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.6.1";
+const APP_VERSION = "v2.6.2";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -503,6 +504,7 @@ document.querySelectorAll(".tab[data-m]").forEach(b => {
     if (mode==="health") { hideAll(); hide("errbox"); }
     $("ep").style.display = mode==="position"?"block":"none";
     $("ed").style.display = mode==="position"?"block":"none";
+    $("cs").style.display = mode==="position"?"block":"none";
     document.getElementById("logArea").style.display = mode==="log"?"block":"none";
     if (mode==="log") { renderLog(); hideAll(); }
     else { document.getElementById("logArea").style.display="none"; }
@@ -611,7 +613,7 @@ const parseEntryDate = (s) => {
   if ((m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/))) { let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
   return null;
 };
-const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
+const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentStopStr) => {
   // marketData comes from Claude's web search — market condition only
   // d = live price data from Twelve Data
   const result = { checks:{}, setupType:"NONE", entryZone:null, pivot:null, stopLoss:null, noMansLand:false };
@@ -808,8 +810,25 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr) => {
       else result.chandelierHit = true;          // price already fell 3×ATR from its post-entry high
     }
 
+    // v2.6.2: compare the app's stop with the stop you actually have at your broker.
+    // The app's stop = the higher of the hard stop and the trail. It never tells you to LOWER your stop.
+    const cs = parseFloat(String(currentStopStr||"").replace(/[$,]/g,""));
+    const appStop = Math.max(hard, result.chandelierStop || 0);
+    if (cs > 0) {
+      result.userStop = cs;
+      result.userStopHit = price > 0 && price <= cs;
+      result.stopAdvice = (appStop > cs && appStop < price) ? "raise" : "keep";
+      result.effectiveStop = Math.max(cs, appStop < price ? appStop : 0);
+    } else {
+      result.effectiveStop = appStop < price ? appStop : null;
+    }
+
     // Loss cut — absolute
-    if (gainPct <= -7.5) {
+    if (result.userStopHit) {
+      result.status = "SELL_ALL";
+      result.sellReason = `Price $${fmt(price)} is at or below your stop $${fmt(cs)} — your stop order should have sold it. If it didn't, exit`;
+    }
+    else if (gainPct <= -7.5) {
       result.status = "SELL_ALL";
       result.sellReason = "7-8% loss rule triggered";
     }
@@ -881,7 +900,8 @@ RULE ENGINE RESULT:
 Status: ${ruleResult.status}
 Gain: ${ruleResult.gainPct?.toFixed(1)||'?'}%
 Chandelier stop: ${ruleResult.chandelierStop?'$'+fmt(ruleResult.chandelierStop):'calculating'}
-Hard stop: $${fmt(ruleResult.hardStop)}`;
+Hard stop: $${fmt(ruleResult.hardStop)}${ruleResult.userStop?`
+User's actual stop: $${fmt(ruleResult.userStop)} (never suggest lowering it)`:''}`;
 
   const systemPrompt = mode==="entry" ? `You are Signal Desk's explanation engine. The rule engine has already made the decision — your ONLY job is to:
 1. Use web search to find: S&P 500 / Nasdaq current condition, RS vs S&P over 3-6 months, latest quarterly EPS and revenue growth, the NEXT earnings report date, any recent news.
@@ -962,6 +982,11 @@ document.querySelectorAll(".act-btn").forEach(b => {
 
 $("aiForceBtn").onclick = () => { window.__forceAI = true; $("goBtn").click(); };
 $("sym").addEventListener("keydown", e=>{ if(e.key==="Enter") $("goBtn").click(); });
+// v2.6.2: Position Review remembers your entry price, date and stop for each ticker (on this device)
+$("sym").addEventListener("change", ()=>{
+  if (mode!=="position") return;
+  try { const p = JSON.parse(store.get("sd2-pos-"+$("sym").value.trim().toUpperCase())||"null"); if (p) { $("ep").value=p.ep||""; $("ed").value=p.ed||""; $("cs").value=p.cs||""; } } catch(e){}
+});
 
 $("goBtn").onclick = async () => {
   loadOpenTrades();
@@ -974,6 +999,7 @@ $("goBtn").onclick = async () => {
   if (mode==="position" && !parseFloat($("ep").value)) {
     $("errbox").textContent = "Enter your entry price."; show("errbox"); return;
   }
+  if (mode==="position") store.set("sd2-pos-"+sym, JSON.stringify({ep:$("ep").value, ed:$("ed").value, cs:$("cs").value}));
   hide("errbox"); hideAll(); $("goBtn").disabled=true;
   startLoad(LOAD_STEPS);
 
@@ -991,7 +1017,7 @@ $("goBtn").onclick = async () => {
     show("confidence");
 
     // 2. run rule engine (partial — RS + fundamentals filled by Claude)
-    const ruleResult = runRuleEngine(d, null, mode, $("ep").value, $("ed").value);
+    const ruleResult = runRuleEngine(d, null, mode, $("ep").value, $("ed").value, $("cs").value);
 
     // 3. Claude explains + fills RS/fundamentals — ONLY when it can change the outcome (saves cost)
     const force = !!window.__forceAI; window.__forceAI = false;
@@ -1011,7 +1037,7 @@ $("goBtn").onclick = async () => {
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
     if (mode==="entry") {
-      finalRule = runRuleEngine(d, ai, mode, $("ep").value, $("ed").value);
+      finalRule = runRuleEngine(d, ai, mode, $("ep").value, $("ed").value, $("cs").value);
     }
 
     // 5. render everything
@@ -1028,6 +1054,7 @@ $("goBtn").onclick = async () => {
       setup: finalRule.setupType||"",
       market: ai?.marketStatus||"",
       entryPrice: $("ep").value||"",
+      userStop: mode==="position" ? ($("cs").value||"") : "",
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
       research: scanResearch(d, finalRule, ai),
@@ -1059,7 +1086,16 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   const L = []; const price = d?.price;
   const today = new Date().toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"2-digit"});
   const risk = riskDollars();
-  const stop = mode==="entry" ? rule.stopLoss : (rule.chandelierStop || rule.hardStop);
+  const stop = mode==="entry" ? rule.stopLoss : (rule.effectiveStop || rule.chandelierStop || rule.hardStop);
+  // v2.6.2: one plain-language stop line for Position Review, based on YOUR stop when you enter it
+  const stopAdvice = () => {
+    if (rule.userStop) {
+      const below = [rule.chandelierStop?`trail $${fmt(rule.chandelierStop)}`:"", rule.hardStop?`hard stop $${fmt(rule.hardStop)}`:""].filter(Boolean).join(" and ");
+      if (rule.stopAdvice==="raise") return `<b>Raise your stop</b> from <b>$${fmt(rule.userStop)}</b> to <b>$${fmt(rule.effectiveStop)}</b> (${rule.chandelierStop && rule.effectiveStop===rule.chandelierStop?"trail from your high since entry":"hard stop"}). Change the order at your broker.`;
+      return `<b>Your stop $${fmt(rule.userStop)}: keep it.</b> The app's ${below||"stop"} ${below.includes(" and ")?"are":"is"} below yours, so no change. Never lower it.`;
+    }
+    return null;
+  };
   const per = (price && rule.stopLoss) ? price - rule.stopLoss : 0;
   const shares = per > 0 ? Math.floor(risk / per) : 0;
   const sizeLine = (mode==="entry" && shares>0)
@@ -1099,19 +1135,20 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   } else {
     const st = rule.status;
     const stopOk = stop && price && stop < price;
-    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
+    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopAdvice()) L.push(stopAdvice()); else if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
     else if (st==="TIGHTEN_STOP") {
       L.push(`<b>Warning:</b> ${rule.trendNote || `price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening`}.`);
-      if (rule.chandelierStop) L.push(`Make sure your stop is at least <b>$${fmt(rule.chandelierStop)}</b> (trail from your high since entry). If yours is already higher, leave it.`);
+      if (stopAdvice()) L.push(stopAdvice());
+      else if (rule.chandelierStop) L.push(`Make sure your stop is at least <b>$${fmt(rule.chandelierStop)}</b> (trail from your high since entry). If yours is already higher, leave it.`);
       else L.push(`Keep your existing stop (no lower than the hard stop <b>$${fmt(rule.hardStop)}</b>). Don't raise it above today's price.`);
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
     }
-    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
+    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
     else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
   }
   // cautions — information only, never change the rating
   const C = [];
-  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); }
+  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); if (!rule.userStop) C.push(`Tip: type <b>your current stop</b> (the one at your broker) in "Your stop $" — the app will say keep it or raise it, and never show a lower one.`); }
   if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
   if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
   if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
@@ -1249,9 +1286,11 @@ const render = (sym, d, rule, ai, mode) => {
     if (rule.stopLoss)  rungs.push(["STOP LOSS","#E5484D22","var(--red)","$"+fmt(rule.stopLoss),rule.stopCapped?"(capped at 8% below today's price — place on fill)":"(7-8% rule — place immediately on fill)"]);
     $("planTitle").textContent="TRADE PLAN";
   } else {
-    if (rule.chandelierStop) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),(rule.entryDateUsed?"(high since entry − 3×ATR)":"(entry/price high − 3×ATR · add entry date for a true trail)")]);
+    const us = rule.userStop;
+    if (us) rungs.push(["YOUR STOP","#2FBF7122","var(--green)","$"+fmt(us), rule.userStopHit?"(price is at/below it — exit)": rule.stopAdvice==="raise"?`(raise to $${fmt(rule.effectiveStop)})`:"(keep it — app's stops are below it)"]);
+    if (rule.chandelierStop && (!us || rule.chandelierStop > us)) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),(rule.entryDateUsed?"(high since entry − 3×ATR)":"(entry/price high − 3×ATR · add entry date for a true trail)")]);
     if (d?.sma50)            rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
-    if (rule.hardStop)       rungs.push(["HARD STOP","#E5484D22","var(--red)","$"+fmt(rule.hardStop),"(7-8% from entry — no exceptions)"]);
+    if (rule.hardStop && (!us || rule.hardStop > us)) rungs.push(["HARD STOP","#E5484D22","var(--red)","$"+fmt(rule.hardStop),"(7-8% from entry — no exceptions)"]);
     $("planTitle").textContent="EXIT LADDER";
   }
   if (rungs.length) {
