@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.6.3</title>
+<title>Signal Desk v2.6.4</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.6.3<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.6.4<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.6.3";
+const APP_VERSION = "v2.6.4";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -422,7 +422,9 @@ const tradeStop = (t) => {
   return t.stop ? { v: +t.stop, src: "Stop column" } : null;
 };
 const tradeLabel = (t) => `${t.type||"Trade"} · ${(String(t.notes||"").split(/[.;]/)[0]||"").slice(0,28) || ("row "+t.row)}`;
+const origStopFor = (sym) => (window.posTrade && String(window.posTrade.ticker).toUpperCase()===String(sym||"").trim().toUpperCase()) ? window.posTrade.stop : "";
 const applyTrade = (t, many) => {
+  window.posTrade = t;
   const st = tradeStop(t);
   $("ep").value = t.entryPrice || ""; $("ed").value = t.entryDate || ""; $("cs").value = st ? st.v : "";
   const pick = many && many.length > 1
@@ -444,7 +446,7 @@ const fillFromSheet = async (force) => {
     applyTrade((real[0]||rows[0]), rows);
     return true;
   }
-  lastFilledSym = "";
+  lastFilledSym = ""; window.posTrade = null;
   $("ep").value = ""; $("ed").value = ""; $("cs").value = "";
   // not in the sheet: fall back to what you typed last time on this device
   try { const p = JSON.parse(store.get("sd2-pos-"+sym)||"null"); if (p) { $("ep").value=p.ep||""; $("ed").value=p.ed||""; $("cs").value=p.cs||""; } } catch(e){}
@@ -658,7 +660,7 @@ const parseEntryDate = (s) => {
   if ((m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/))) { let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[1]-1, +m[2]); }
   return null;
 };
-const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentStopStr) => {
+const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentStopStr, origStopStr) => {
   // marketData comes from Claude's web search — market condition only
   // d = live price data from Twelve Data
   const result = { checks:{}, setupType:"NONE", entryZone:null, pivot:null, stopLoss:null, noMansLand:false };
@@ -847,22 +849,34 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       result.entryDateUsed = true;
     }
     result.hiSinceEntry = hiSince;
-    const hard = ep * 0.92;
-    const chand = (d?.atr) ? hiSince - 3 * d.atr : null;
-    // the trail only matters once it is ABOVE the hard stop; it can never sit above today's price
-    if (chand && chand > hard) {
-      if (chand < price) result.chandelierStop = chand;
-      else result.chandelierHit = true;          // price already fell 3×ATR from its post-entry high
-    }
-
-    // v2.6.2: compare the app's stop with the stop you actually have at your broker.
-    // The app's stop = the higher of the hard stop and the trail. It never tells you to LOWER your stop.
+    // v2.6.4 STOP RULE A2 — "earn the trail" (changed 10/07/26):
+    //   Step 1: until the stock has traded at +1R, keep the ORIGINAL stop (the one you sized with).
+    //   Step 2: once it has traded at +1R, raise the stop to breakeven (your buy price).
+    //   Step 3: once it has traded at +2R, trail = the higher of breakeven and (high since entry − 3×ATR).
+    //   R = buy price − original stop. Never lower a stop.
     const cs = parseFloat(String(currentStopStr||"").replace(/[$,]/g,""));
-    const appStop = Math.max(hard, result.chandelierStop || 0);
+    let orig = parseFloat(String(origStopStr||"").replace(/[$,]/g,""));
+    result.origStopSource = "sheet";
+    if (!(orig > 0 && orig < ep)) {
+      if (cs > 0 && cs < ep) { orig = cs; result.origStopSource = "your stop"; }
+      else { orig = ep * 0.92; result.origStopSource = "8% rule"; }
+    }
+    const R = ep - orig;
+    const lvl1 = ep + R, lvl2 = ep + 2 * R;
+    const chand = (d?.atr) ? hiSince - 3 * d.atr : null;
+    let step, appStop;
+    if (hiSince >= lvl2) { step = 3; appStop = Math.max(ep, chand || 0); }
+    else if (hiSince >= lvl1) { step = 2; appStop = Math.max(orig, ep); }
+    else { step = 1; appStop = orig; }
+    Object.assign(result, { stopStep: step, R, lvl1, lvl2, origStop: orig, appStop });
+    if (step === 3 && chand && chand > ep) result.chandelierStop = chand;
+    result.appStopHit = price > 0 && price <= appStop;
+
+    // compare with the stop you actually have at your broker — never tell you to LOWER it
     if (cs > 0) {
       result.userStop = cs;
       result.userStopHit = price > 0 && price <= cs;
-      result.stopAdvice = (appStop > cs && appStop < price) ? "raise" : "keep";
+      result.stopAdvice = (appStop > cs + 0.005 && appStop < price) ? "raise" : "keep";
       result.effectiveStop = Math.max(cs, appStop < price ? appStop : 0);
     } else {
       result.effectiveStop = appStop < price ? appStop : null;
@@ -877,9 +891,11 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       result.status = "SELL_ALL";
       result.sellReason = "7-8% loss rule triggered";
     }
-    else if (result.chandelierHit) {
+    else if (result.appStopHit) {
       result.status = "SELL_ALL";
-      result.sellReason = "Trailing stop hit — price fell 3×ATR from its high since entry";
+      result.sellReason = step===1 ? `Price $${fmt(price)} is at or below your original stop $${fmt(appStop)}`
+        : step===2 ? `It reached +1R ($${fmt(lvl1)}) and then fell back to your buy price — the breakeven stop $${fmt(appStop)} is hit`
+        : `Trailing stop hit — price fell to $${fmt(price)}, below the trail $${fmt(appStop)}`;
     }
     // v2.5.3 FIX: Weinstein Stage 4 — same test Entry Scan uses (price < 200-day AND 50-day < 200-day)
     else if (d?.sma50 && d?.sma200 && price < d.sma200 && d.sma50 < d.sma200) {
@@ -903,7 +919,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       result.status = "HOLD";
     }
 
-    result.hardStop = hard;
+    result.hardStop = orig;
     result.sma50    = d?.sma50 || null;
     result.score    = 50; // position review score is less meaningful
   }
@@ -944,8 +960,8 @@ ${ruleResult.stopLoss?`Stop loss: $${fmt(ruleResult.stopLoss)}`:''}
 RULE ENGINE RESULT:
 Status: ${ruleResult.status}
 Gain: ${ruleResult.gainPct?.toFixed(1)||'?'}%
-Chandelier stop: ${ruleResult.chandelierStop?'$'+fmt(ruleResult.chandelierStop):'calculating'}
-Hard stop: $${fmt(ruleResult.hardStop)}${ruleResult.userStop?`
+Stop rule: step ${ruleResult.stopStep} of 3 (1 = original stop, 2 = breakeven after +1R, 3 = 3xATR trail after +2R)
+App stop now: $${fmt(ruleResult.appStop)} · original stop $${fmt(ruleResult.origStop)}${ruleResult.userStop?`
 User's actual stop: $${fmt(ruleResult.userStop)} (never suggest lowering it)`:''}`;
 
   const systemPrompt = mode==="entry" ? `You are Signal Desk's explanation engine. The rule engine has already made the decision — your ONLY job is to:
@@ -1059,7 +1075,7 @@ $("goBtn").onclick = async () => {
     show("confidence");
 
     // 2. run rule engine (partial — RS + fundamentals filled by Claude)
-    const ruleResult = runRuleEngine(d, null, mode, $("ep").value, $("ed").value, $("cs").value);
+    const ruleResult = runRuleEngine(d, null, mode, $("ep").value, $("ed").value, $("cs").value, origStopFor($("sym").value));
 
     // 3. Claude explains + fills RS/fundamentals — ONLY when it can change the outcome (saves cost)
     const force = !!window.__forceAI; window.__forceAI = false;
@@ -1079,7 +1095,7 @@ $("goBtn").onclick = async () => {
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
     if (mode==="entry") {
-      finalRule = runRuleEngine(d, ai, mode, $("ep").value, $("ed").value, $("cs").value);
+      finalRule = runRuleEngine(d, ai, mode, $("ep").value, $("ed").value, $("cs").value, origStopFor($("sym").value));
     }
 
     // 5. render everything
@@ -1129,14 +1145,23 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   const today = new Date().toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"2-digit"});
   const risk = riskDollars();
   const stop = mode==="entry" ? rule.stopLoss : (rule.effectiveStop || rule.chandelierStop || rule.hardStop);
-  // v2.6.2: one plain-language stop line for Position Review, based on YOUR stop when you enter it
+  // v2.6.4: plain-language stop advice for rule A2 ("earn the trail")
+  const stepWhy = () => rule.stopStep===3 ? `trailing stop (high since entry − 3× daily swing), never below breakeven`
+    : rule.stopStep===2 ? `breakeven — it already traded at +1R ($${fmt(rule.lvl1)})` : `your original stop`;
+  const nextStep = () => rule.stopStep===1 ? `<b>Next step:</b> once it trades at <b>$${fmt(rule.lvl1)}</b> (+1R), raise your stop to <b>$${fmt(rule.lvl1 - rule.R)}</b> — your buy price (breakeven).`
+    : rule.stopStep===2 ? `<b>Next step:</b> once it trades at <b>$${fmt(rule.lvl2)}</b> (+2R), the trailing stop takes over.`
+    : `<b>Trailing:</b> each review, raise the stop if the trail has moved up. Never lower it.`;
   const stopAdvice = () => {
+    if (rule.stopStep == null) return null;
+    let line;
     if (rule.userStop) {
-      const below = [rule.chandelierStop?`trail $${fmt(rule.chandelierStop)}`:"", rule.hardStop?`hard stop $${fmt(rule.hardStop)}`:""].filter(Boolean).join(" and ");
-      if (rule.stopAdvice==="raise") return `<b>Raise your stop</b> from <b>$${fmt(rule.userStop)}</b> to <b>$${fmt(rule.effectiveStop)}</b> (${rule.chandelierStop && rule.effectiveStop===rule.chandelierStop?"trail from your high since entry":"hard stop"}). Change the order at your broker.`;
-      return `<b>Your stop $${fmt(rule.userStop)}: keep it.</b> The app's ${below||"stop"} ${below.includes(" and ")?"are":"is"} below yours, so no change. Never lower it.`;
-    }
-    return null;
+      line = rule.stopAdvice==="raise"
+        ? `<b>Raise your stop</b> from <b>$${fmt(rule.userStop)}</b> to <b>$${fmt(rule.appStop)}</b> (${stepWhy()}). Change the order at your broker.`
+        : `<b>Your stop $${fmt(rule.userStop)}: keep it.</b> ${rule.userStop > rule.appStop + 0.005 ? `It's already above the rule's stop ($${fmt(rule.appStop)}). Never lower it.` : `That's the rule's stop (${stepWhy()}).`}`;
+    } else if (rule.appStop < (d?.price||0)) {
+      line = `Your stop should be <b>$${fmt(rule.appStop)}</b> (${stepWhy()}). If yours is higher, keep yours — never lower it.`;
+    } else return null;
+    return line + `<br>` + nextStep();
   };
   const per = (price && rule.stopLoss) ? price - rule.stopLoss : 0;
   const shares = per > 0 ? Math.floor(risk / per) : 0;
@@ -1181,8 +1206,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
     else if (st==="TIGHTEN_STOP") {
       L.push(`<b>Warning:</b> ${rule.trendNote || `price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening`}.`);
       if (stopAdvice()) L.push(stopAdvice());
-      else if (rule.chandelierStop) L.push(`Make sure your stop is at least <b>$${fmt(rule.chandelierStop)}</b> (trail from your high since entry). If yours is already higher, leave it.`);
-      else L.push(`Keep your existing stop (no lower than the hard stop <b>$${fmt(rule.hardStop)}</b>). Don't raise it above today's price.`);
+      else L.push(`Keep your existing stop. Don't raise it above today's price.`);
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
     }
     else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
@@ -1190,7 +1214,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   }
   // cautions — information only, never change the rating
   const C = [];
-  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); if (!rule.userStop) C.push(`Tip: type <b>your current stop</b> (the one at your broker) in "Your stop $" — the app will say keep it or raise it, and never show a lower one.`); }
+  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); if (rule.origStopSource && rule.origStopSource!=="sheet") C.push(`Original stop not found in your Trades sheet — using ${rule.origStopSource==="your stop"?"your stop":"8% below your buy price"} ($${fmt(rule.origStop)}) as the starting stop. Steps are measured from it.`); if (!rule.userStop) C.push(`Tip: type <b>your current stop</b> (the one at your broker) in "Your stop $" — the app will say keep it or raise it, and never show a lower one.`); }
   if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
   if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
   if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
@@ -1329,10 +1353,11 @@ const render = (sym, d, rule, ai, mode) => {
     $("planTitle").textContent="TRADE PLAN";
   } else {
     const us = rule.userStop;
-    if (us) rungs.push(["YOUR STOP","#2FBF7122","var(--green)","$"+fmt(us), rule.userStopHit?"(price is at/below it — exit)": rule.stopAdvice==="raise"?`(raise to $${fmt(rule.effectiveStop)})`:"(keep it — app's stops are below it)"]);
-    if (rule.chandelierStop && (!us || rule.chandelierStop > us)) rungs.push(["TRAIL STOP","#E8A33D22","var(--amber)","$"+fmt(rule.chandelierStop),(rule.entryDateUsed?"(high since entry − 3×ATR)":"(entry/price high − 3×ATR · add entry date for a true trail)")]);
-    if (d?.sma50)            rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
-    if (rule.hardStop && (!us || rule.hardStop > us)) rungs.push(["HARD STOP","#E5484D22","var(--red)","$"+fmt(rule.hardStop),"(7-8% from entry — no exceptions)"]);
+    if (us) rungs.push(["YOUR STOP","#2FBF7122","var(--green)","$"+fmt(us), rule.userStopHit?"(price is at/below it — exit)": rule.stopAdvice==="raise"?`(raise to $${fmt(rule.appStop)})`:"(keep it)"]);
+    if (rule.appStop && (!us || rule.appStop > us + 0.005)) rungs.push([["","ORIGINAL STOP","BREAKEVEN","TRAIL STOP"][rule.stopStep],"#E8A33D22","var(--amber)","$"+fmt(rule.appStop),`(rule step ${rule.stopStep} of 3)`]);
+    if (rule.stopStep===1) rungs.push(["AT +1R","#5B8DB822","var(--blue)","$"+fmt(rule.lvl1),`(raise stop to breakeven $${fmt(rule.lvl1-rule.R)})`]);
+    if (rule.stopStep<=2) rungs.push(["AT +2R","#5B8DB822","var(--blue)","$"+fmt(rule.lvl2),"(trailing stop takes over)"]);
+    if (d?.sma50) rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
     $("planTitle").textContent="EXIT LADDER";
   }
   if (rungs.length) {
