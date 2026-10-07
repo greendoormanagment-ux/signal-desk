@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.6.2</title>
+<title>Signal Desk v2.6.3</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.6.2<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.6.3<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -178,6 +178,8 @@ input,button{font-family:inherit}
   <input class="inp sm" id="cs" placeholder="Your stop $" inputmode="decimal" style="display:none;font-size:12px">
   <button class="btn-go" id="goBtn">ANALYZE</button>
 </div>
+
+<div id="posFill" style="display:none;margin:-6px 0 14px;font-size:12px;color:var(--muted);line-height:1.5"></div>
 
 <div class="loading" id="loading">
   <div class="ln" id="loadLn">Fetching live data…</div>
@@ -373,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.6.2";
+const APP_VERSION = "v2.6.3";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -411,6 +413,48 @@ const loadOpenTrades = async () => {
   try { const r = await fetch(SHEET_URL + "?action=open&key=" + encodeURIComponent(SHEET_KEY));
         const j = await r.json(); if (Array.isArray(j.open)) window.openTrades = j.open; } catch(e) { /* offline or old script — warnings just won't show */ }
 };
+// v2.6.3: Position Review fills Entry / Date / Stop from your open row in the Trades sheet.
+// Stop used = "Current Stop" column → else the last "STOP RAISED to $X" in Notes → else the Stop column.
+const tradeStop = (t) => {
+  if (t.currentStop) return { v: +t.currentStop, src: "Current Stop column" };
+  const m = [...String(t.notes||"").matchAll(/STOP RAISED to \$([\d,]+(?:\.\d+)?)/gi)];
+  if (m.length) return { v: parseFloat(m[m.length-1][1].replace(/,/g,"")), src: "last \"STOP RAISED\" in Notes" };
+  return t.stop ? { v: +t.stop, src: "Stop column" } : null;
+};
+const tradeLabel = (t) => `${t.type||"Trade"} · ${(String(t.notes||"").split(/[.;]/)[0]||"").slice(0,28) || ("row "+t.row)}`;
+const applyTrade = (t, many) => {
+  const st = tradeStop(t);
+  $("ep").value = t.entryPrice || ""; $("ed").value = t.entryDate || ""; $("cs").value = st ? st.v : "";
+  const pick = many && many.length > 1
+    ? ` <select id="posPick" class="inp sm" style="padding:4px 6px;font-size:12px;min-width:0">${many.map((x,i)=>`<option value="${i}"${x===t?" selected":""}>${tradeLabel(x)}</option>`).join("")}</select>` : "";
+  $("posFill").innerHTML = `✓ Filled from your Trades sheet — row ${t.row} · ${t.type||""}${st?` · stop from ${st.src}`:""}. Change any box to override.${pick}${many && many.length>1?`<br>You have <b>${many.length}</b> open ${t.ticker} rows — pick the one you're reviewing.`:""}`;
+  $("posFill").style.display = "block";
+  const sel = $("posPick"); if (sel) sel.onchange = () => applyTrade(many[+sel.value], many);
+};
+let lastFilledSym = "";
+const fillFromSheet = async (force) => {
+  if (mode!=="position") return false;
+  const sym = $("sym").value.trim().toUpperCase(); if (!sym) return false;
+  if (!force && sym===lastFilledSym) return true;
+  if (!Array.isArray(window.openTrades)) await loadOpenTrades();
+  const rows = (window.openTrades||[]).filter(t => String(t.ticker).toUpperCase()===sym && t.entryPrice);
+  if (rows.length) {
+    lastFilledSym = sym;
+    const real = rows.filter(t=>/real/i.test(t.type));
+    applyTrade((real[0]||rows[0]), rows);
+    return true;
+  }
+  lastFilledSym = "";
+  $("ep").value = ""; $("ed").value = ""; $("cs").value = "";
+  // not in the sheet: fall back to what you typed last time on this device
+  try { const p = JSON.parse(store.get("sd2-pos-"+sym)||"null"); if (p) { $("ep").value=p.ep||""; $("ed").value=p.ed||""; $("cs").value=p.cs||""; } } catch(e){}
+  $("posFill").innerHTML = Array.isArray(window.openTrades)
+    ? `No open ${sym} row in your Trades sheet — type your entry price, date and stop.`
+    : `Couldn't reach your Trades sheet — type your entry price, date and stop.`;
+  $("posFill").style.display = "block";
+  return false;
+};
+
 // v2.4.2: timestamps in Eastern time (handles EST/EDT automatically)
 const etStamp = (dt) => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(dt).map(x=>[x.type,x.value]));
@@ -505,6 +549,7 @@ document.querySelectorAll(".tab[data-m]").forEach(b => {
     $("ep").style.display = mode==="position"?"block":"none";
     $("ed").style.display = mode==="position"?"block":"none";
     $("cs").style.display = mode==="position"?"block":"none";
+    if (mode==="position") fillFromSheet(); else $("posFill").style.display="none";
     document.getElementById("logArea").style.display = mode==="log"?"block":"none";
     if (mode==="log") { renderLog(); hideAll(); }
     else { document.getElementById("logArea").style.display="none"; }
@@ -982,11 +1027,7 @@ document.querySelectorAll(".act-btn").forEach(b => {
 
 $("aiForceBtn").onclick = () => { window.__forceAI = true; $("goBtn").click(); };
 $("sym").addEventListener("keydown", e=>{ if(e.key==="Enter") $("goBtn").click(); });
-// v2.6.2: Position Review remembers your entry price, date and stop for each ticker (on this device)
-$("sym").addEventListener("change", ()=>{
-  if (mode!=="position") return;
-  try { const p = JSON.parse(store.get("sd2-pos-"+$("sym").value.trim().toUpperCase())||"null"); if (p) { $("ep").value=p.ep||""; $("ed").value=p.ed||""; $("cs").value=p.cs||""; } } catch(e){}
-});
+$("sym").addEventListener("change", ()=>{ fillFromSheet(); });
 
 $("goBtn").onclick = async () => {
   loadOpenTrades();
@@ -996,6 +1037,7 @@ $("goBtn").onclick = async () => {
     $("errbox").textContent = "Add your Anthropic API key first — tap the setup bar at the top.";
     show("errbox"); $("setupBox").classList.add("open"); return;
   }
+  if (mode==="position" && $("sym").value.trim().toUpperCase()!==lastFilledSym && !parseFloat($("ep").value)) await fillFromSheet(true);
   if (mode==="position" && !parseFloat($("ep").value)) {
     $("errbox").textContent = "Enter your entry price."; show("errbox"); return;
   }
