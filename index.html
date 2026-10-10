@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.7.1</title>
+<title>Signal Desk v2.7.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.7.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.7.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.7.1";
+const APP_VERSION = "v2.7.2";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -795,10 +795,15 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
         result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail:`EPS $${eps.toFixed(2)}${q}, year-ago EPS not found — verify growth${revTxt}` };
       } else if (prior <= 0) {
         result.checks.fundamentals = { score:SCORE_WEIGHTS.fundamentals, status:"pass", detail:`Turned profitable: EPS $${eps.toFixed(2)} vs $${prior.toFixed(2)} a year ago${q}${revTxt}` };
+        if (fd._sec) result.checks.fundamentals.warn = "Turned profitable per SEC filings — make sure it isn't a one-time gain (Finviz \"EPS Q/Q\" or RUN AI CHECK) before buying.";
       } else {
         const g = (eps - prior) / prior * 100;
         const pass = g >= 25;
         result.checks.fundamentals = { score: pass?SCORE_WEIGHTS.fundamentals:(g>=15?Math.round(SCORE_WEIGHTS.fundamentals*0.3):0), status: pass?"pass":"fail", detail:`EPS ${g>=0?"+":""}${g.toFixed(0)}% ($${eps.toFixed(2)} vs $${prior.toFixed(2)})${q}${pass?"":" — rule needs 25%+"}${revTxt}` };
+        // v2.7.2: flag suspiciously big jumps (often one-time gains)
+        if (g > 100) result.checks.fundamentals.warn = fd._sec
+          ? "Big jump — SEC numbers include one-time items (asset sales, investment gains, tax benefits). Check adjusted EPS (Finviz \"EPS Q/Q\" or RUN AI CHECK) before buying."
+          : (rev!==null && g > 4*Math.max(rev,5) ? `Big jump — EPS grew far faster than sales (+${rev.toFixed(0)}%). Confirm it isn't a one-time gain before buying.` : "");
       }
     } else {
       result.checks.fundamentals = { score:Math.round(SCORE_WEIGHTS.fundamentals*0.5), status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : marketData ? "EPS data not returned — verify 25%+ EPS growth before buying" : "Checking earnings growth…" };
@@ -1395,7 +1400,7 @@ const render = (sym, d, rule, ai, mode) => {
     const cols={pass:"var(--green)",fail:"var(--red)",neutral:"var(--amber)"};
     const labels={market:"Market Gate",trend:"Trend Structure",entry:"Entry Setup",momentum:"Momentum (RSI)",volume:"Volume",rs:"Relative Strength",fundamentals:"Fundamentals",earnings:"Earnings Date"};
     Object.entries(rule.checks).forEach(([k,chk])=>{
-      cr.innerHTML+=`<div class="chk"><span class="chk-icon" style="color:${cols[chk.status]||'var(--muted)'}">${icons[chk.status]||'–'}</span><span class="chk-name">${labels[k]||k}</span><span class="chk-detail">${chk.detail}</span></div>`;
+      cr.innerHTML+=`<div class="chk"><span class="chk-icon" style="color:${cols[chk.status]||'var(--muted)'}">${icons[chk.status]||'–'}</span><span class="chk-name">${labels[k]||k}</span><span class="chk-detail">${chk.detail}${chk.warn?`<br><span style="color:var(--amber)">⚠ ${chk.warn}</span>`:""}</span></div>`;
     });
     $("chkTitle").textContent="RULE STACK";
     show("chkPanel");
