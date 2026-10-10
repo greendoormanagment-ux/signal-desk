@@ -3,7 +3,7 @@
 Stock screener for Tony's 30-day rules test (O'Neil breakouts/pullbacks, Weinstein stages, chandelier stops).
 **Rules decide; Claude only explains.** Live app: https://greendoormanagment-ux.github.io/signal-desk/
 
-_Last updated: Oct 11, 2026 · app v2.9_
+_Last updated: Oct 10, 2026 · app v2.9.2 · sheet script v8_
 
 ## Mission
 > *Signal Desk finds high-quality setups, sizes the risk, enforces the exits, and keeps score honestly — so every rule has to earn its place.*
@@ -28,9 +28,9 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 | AI | Anthropic API (key in the app's setup bar) | explanations; runs only when price rules pass and SEC EPS passes, or on RUN AI CHECK |
 | EPS | `eps.json` — built nightly from SEC filings | latest quarter EPS vs same quarter last year (GAAP, includes one-time items) |
 | Earnings dates | `earnings.json` — built nightly from Alpha Vantage | next report date + analyst EPS estimate (next 3 months) |
-| Nightly job | `.github/workflows/nightly-eps.yml` → `scripts/build_earnings.py`, `scripts/build_eps.py` | ~4:17 a.m. ET; run by hand from the **Actions** tab; secret `ALPHAVANTAGE_KEY` |
+| Nightly job | `.github/workflows/nightly-eps.yml` → `scripts/build_earnings.py`, `scripts/build_eps.py`, `scripts/check_data.py` | ~4:17 a.m. ET; run by hand from the **Actions** tab; secret `ALPHAVANTAGE_KEY`. Saves a dated copy of both files in `history/` (what the app believed each day). Then sanity-checks the data — a failed run email means something looked wrong; the run log says what |
 | Decision Log | Google Sheet "Signal_Desk_Decision_Log" | Scans (auto), Trades, Stats, Outcomes, Fix List, Account Activity |
-| Sheet script | Sheet → Extensions → Apps Script ("Signal Desk Logger"), web-app version 7 | logs scans; sends open trades to Position Review (ticker, account code, entry, stops — never Notes); auto-notes stop changes; builds the What's Working tab |
+| Sheet script | Sheet → Extensions → Apps Script ("Signal Desk Logger"), web-app version 8 | logs scans; sends open trades to Position Review (ticker, account code, entry, stops — never Notes); auto-notes stop changes; builds the What's Working tab |
 
 ## Rules (v2.8)
 - **Market gate** (rules-based): SPY and QQQ vs their 50-day average + distribution days (down ≥0.2% on higher volume, last 25 sessions). UPTREND / PRESSURE (5+ distribution days or below 50-day) / CORRECTION (below a falling 50-day).
@@ -46,12 +46,19 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 - Column **J = Original Stop** (never change), **K = Current Stop** (update when the app says raise). Changing Current Stop auto-writes a dated note in Notes. (Columns are found by header name, so moving them doesn't break anything.)
 - Also update the stop order at the broker (all shares, GTC).
 
+## Scans tab — extra columns (v2.9.2, for the reviews)
+- Logged automatically: **Checks** (each check ✓ pass / ✗ fail / ~ neutral), **Pivot**, **App Stop**, **Risk/Share**, **SPY / QQQ vs 50D %**, **SPY / QQQ Dist Days**; Notes shows app version + date of the EPS and calendar data used.
+- Fill in yourself: **My Call** (Bought / Paper / Skipped / Watching) and **Why** (dropdown) — especially when you skip a BUY or buy something the app didn't rate BUY. Re-sent scans never overwrite these.
+- Trades **AB = Planned Entry** (the app's price when you decided) → **AC = Slippage %** (how far your real fill was from plan).
+- Rule of thumb: save now anything that can't be rebuilt later (your decisions, what the app said, fill prices). Prices and history can be re-downloaded.
+
 ## Routine
+- **Fridays (10/17, 10/24): 15-min weekly data check** — no rule changes. Spot-check 2 scans vs Finviz + company IR page; confirm new columns fill; anything surprising → Fix List.
 - Scan → I BOUGHT IT / I PASSED (logged automatically).
 - Position Review every few days on open trades; raise stops when told.
 - If GitHub emails "workflow failed": nothing breaks — the app uses the last good files; the next night usually fixes it.
 - If GitHub emails "scheduled workflow disabled": Actions tab → Enable workflow.
 
 ## History
-- v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes
+- v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes · v2.9.1 one shared earnings day count (log = rule), data age in Notes · v2.9.2 logs each check + pivot/stop/risk + SPY/QQQ detail; nightly history snapshots + data sanity check
 - The sheet key in `index.html` must match `SECRET` in the sheet script. If it's ever changed, change both and publish a new script version.
