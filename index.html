@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.7.2</title>
+<title>Signal Desk v2.8</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.7.2<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.8<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.7.2";
+const APP_VERSION = "v2.8";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -427,6 +427,76 @@ const fetchSecEps = async (sym) => {
 };
 const secUsable = (s) => !!(s && s.status==="ok" && s.staleDays <= 135);
 const secFd = (s) => secUsable(s) ? { epsLatest:s.eps, epsYearAgo:s.prevEps, quarter:`SEC · qtr ended ${s.qEnd} · updated ${s.asOf} · includes one-time items`, _sec:true } : null;
+// v2.8: rules-based market gate, relative strength and earnings date — no AI needed
+// Market + RS use SPY/QQQ daily bars from Twelve Data (2 credits, cached once per day).
+// Earnings dates come from earnings.json, rebuilt nightly by the GitHub job (Alpha Vantage calendar).
+let __earnCal = null;
+const fetchEarningsCal = async (sym) => {
+  try {
+    if (!__earnCal) { const r = await fetch("earnings.json?d=" + new Date().toISOString().slice(0,10)); __earnCal = await r.json(); }
+    const row = __earnCal?.data?.[String(sym).toUpperCase()];
+    return row ? { date:row[0], fiscalEnd:row[1], estimate:row[2], time:row[3], asOf:__earnCal.asOf } : { notListed:true, asOf:__earnCal?.asOf };
+  } catch(e) { return null; }
+};
+const fetchIndexBars = async () => {
+  const tdKey = store.get("sd2-tkey"); if (!tdKey) return null;
+  const day = etStamp(new Date()).slice(0,10);
+  try { const c = JSON.parse(store.get("sd2-idx") || "null"); if (c && c.day === day && c.post === (new Date().getHours() >= 16)) return c.data; } catch(e) {}
+  const get = u => fetch(u).then(r=>r.json()).catch(()=>null);
+  const [spy, qqq] = await Promise.all(["SPY","QQQ"].map(t => get(`https://api.twelvedata.com/time_series?symbol=${t}&interval=1day&outputsize=320&apikey=${tdKey}`)));
+  const conv = j => (j?.values||[]).map(v=>({date:String(v.datetime).slice(0,10), c:+v.close, v:+v.volume})).reverse();
+  const data = { SPY: conv(spy), QQQ: conv(qqq) };
+  // drop today's unfinished bar while the market is open (judge completed days only)
+  for (const k of ["SPY","QQQ"]) { const b = data[k]; if (b.length && b[b.length-1].date === day && new Date().getHours() < 16) b.pop(); }
+  if (data.SPY.length < 60 || data.QQQ.length < 60) return null;
+  store.set("sd2-idx", JSON.stringify({ day, post:new Date().getHours() >= 16, data }));
+  return data;
+};
+// O'Neil-style market read for one index: 50-day trend + distribution days (down 0.2%+ on higher volume, last 25 sessions)
+const idxStatus = (b) => {
+  const n = b.length, c = b.map(x=>x.c);
+  const sma = end => c.slice(end-50, end).reduce((s,x)=>s+x,0) / 50;
+  const ma = sma(n), maPrev = sma(n-5), last = c[n-1], rising = ma > maPrev;
+  let dd = 0;
+  for (let i = Math.max(1, n-25); i < n; i++) if (c[i] <= c[i-1]*0.998 && b[i].v > b[i-1].v && last < c[i]*1.05) dd++;
+  const st = (last < ma && !rising) ? "CORRECTION" : (last < ma || dd >= 5) ? "PRESSURE" : "UPTREND";
+  return { st, last, ma, rising, dd };
+};
+const marketFromIndexes = (ix) => {
+  const a = idxStatus(ix.SPY), b = idxStatus(ix.QQQ);
+  const st = (a.st==="CORRECTION" && b.st==="CORRECTION") ? "CORRECTION" : (a.st!=="UPTREND" || b.st!=="UPTREND") ? "PRESSURE" : "UPTREND";
+  const t = (n,x) => `${n} ${x.last>x.ma?"above":"below"} its ${x.rising?"rising":"falling"} 50-day, ${x.dd} distribution day${x.dd===1?"":"s"}`;
+  return { status: st, note: `${t("S&P (SPY)",a)} · ${t("Nasdaq (QQQ)",b)} · rules-based` };
+};
+// Relative strength vs the S&P 500: Mansfield RS (vs its 1-year average) + 3-month outperformance
+const rsFromBars = (stockBars, spyBars) => {
+  const m = new Map(spyBars.map(x=>[x.date, x.c]));
+  const pts = (stockBars||[]).map(x => { const s = m.get(String(x.date).slice(0,10)); return s ? x.c/s : null; }).filter(Boolean);
+  if (pts.length < 130) return null;
+  const len = Math.min(252, pts.length), avg = pts.slice(-len).reduce((a,b)=>a+b,0)/len, now = pts[pts.length-1];
+  const mans = (now/avg - 1) * 100, k = Math.min(63, pts.length-1), rel3 = (now/pts[pts.length-1-k] - 1) * 100;
+  const status = (mans > 0 && rel3 > 0) ? "pass" : (mans < 0 && rel3 < 0) ? "fail" : "neutral";
+  return { score: status==="pass" ? SCORE_WEIGHTS.rs : status==="neutral" ? Math.round(SCORE_WEIGHTS.rs*0.5) : 0, status,
+           detail: `Mansfield RS ${mans>=0?"+":""}${mans.toFixed(1)} · 3-month vs S&P ${rel3>=0?"+":""}${rel3.toFixed(1)}% (rules-based)` };
+};
+// Put the rules-based readings into the same object the rule engine reads; keep Claude's answers alongside for comparison
+const applyCodeData = (ai, d, ix, cal) => {
+  ai = ai || {};
+  if (ix) {
+    const mk = marketFromIndexes(ix);
+    if (ai.marketStatus) { ai.aiMarketStatus = ai.marketStatus; }
+    ai.marketStatus = mk.status;
+    ai.marketNote = mk.note + (ai.aiMarketStatus && ai.aiMarketStatus !== mk.status ? ` · Claude's read: ${ai.aiMarketStatus}` : "");
+    ai.marketSource = "rules";
+    const rs = rsFromBars(d?.bars, ix.SPY);
+    if (rs) { if (ai.rsCheck) rs.detail += ` · Claude: ${ai.rsCheck.status}`; ai.rsCheck = rs; }
+  }
+  if (cal && cal.date) {
+    if (ai.nextEarningsDate && ai.nextEarningsDate !== cal.date && /^\d{4}-\d{2}-\d{2}$/.test(ai.nextEarningsDate)) ai.aiEarningsDate = ai.nextEarningsDate;
+    ai.nextEarningsDate = cal.date; ai.earningsSource = "calendar"; ai.earningsEstimate = cal.estimate;
+  } else if (cal && cal.notListed && !ai.nextEarningsDate) { ai.earningsNotListed = true; }
+  return ai;
+};
 // v2.6.3: Position Review fills Entry / Date / Stop from your open row in the Trades sheet.
 // Stop used = "Current Stop" column → else the last "STOP RAISED to $X" in Notes → else the Stop column.
 const tradeStop = (t) => {
@@ -682,7 +752,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
   if (mode === "entry") {
     // GATE 0: Market
     const mkt = marketData?.marketStatus || marketData?.market || "UNKNOWN";
-    if (marketData?.aiSkipped) result.checks.market = { score:Math.round(SCORE_WEIGHTS.market*0.5), status:"neutral", detail:"Not checked — "+marketData.reason };
+    if (marketData?.aiSkipped && !marketData?.marketStatus) result.checks.market = { score:Math.round(SCORE_WEIGHTS.market*0.5), status:"neutral", detail:"Not checked — "+marketData.reason };
     else result.checks.market = { score: mkt==="UPTREND"?SCORE_WEIGHTS.market : mkt==="PRESSURE"?Math.round(SCORE_WEIGHTS.market*0.4):0, status: mkt==="UPTREND"?"pass":mkt==="PRESSURE"?"neutral":"fail", detail: mkt==="UNKNOWN" ? "Checking market…" : mkt+(marketData?.marketNote?" — "+marketData.marketNote:"") };
 
     // GATE 1: Trend (deterministic if we have MAs)
@@ -801,7 +871,9 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
         const pass = g >= 25;
         result.checks.fundamentals = { score: pass?SCORE_WEIGHTS.fundamentals:(g>=15?Math.round(SCORE_WEIGHTS.fundamentals*0.3):0), status: pass?"pass":"fail", detail:`EPS ${g>=0?"+":""}${g.toFixed(0)}% ($${eps.toFixed(2)} vs $${prior.toFixed(2)})${q}${pass?"":" — rule needs 25%+"}${revTxt}` };
         // v2.7.2: flag suspiciously big jumps (often one-time gains)
-        if (g > 100) result.checks.fundamentals.warn = fd._sec
+        const est = num(marketData?.earningsEstimate);
+        if (g > 100 && fd._sec && est !== null && est < eps * 0.6) result.checks.fundamentals.warn = `Likely one-time boost — analysts expect about $${est.toFixed(2)} next quarter vs $${eps.toFixed(2)} last quarter. Check adjusted EPS (Finviz "EPS Q/Q" or RUN AI CHECK) before buying.`;
+        else if (g > 100) result.checks.fundamentals.warn = fd._sec
           ? "Big jump — SEC numbers include one-time items (asset sales, investment gains, tax benefits). Check adjusted EPS (Finviz \"EPS Q/Q\" or RUN AI CHECK) before buying."
           : (rev!==null && g > 4*Math.max(rev,5) ? `Big jump — EPS grew far faster than sales (+${rev.toFixed(0)}%). Confirm it isn't a one-time gain before buying.` : "");
       }
@@ -815,10 +887,10 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       const days = Math.ceil((new Date(ne+"T16:00:00") - new Date()) / 864e5);
       result.earningsDays = days;
       if (days >= 0 && days <= 14) result.checks.earnings = { score:0, status:"fail", detail:`Earnings ${ne} — in ${days} day${days===1?"":"s"}. No new buys within 14 days of a report` };
-      else if (days > 14) result.checks.earnings = { score:0, status:"pass", detail:`Next earnings ${ne} (${days} days away)` };
+      else if (days > 14) result.checks.earnings = { score:0, status:"pass", detail:`Next earnings ${ne} (${days} days away)${marketData?.earningsSource==="calendar"?" · earnings calendar":""}${marketData?.aiEarningsDate?` · Claude found ${marketData.aiEarningsDate}`:""}` };
       else result.checks.earnings = { score:0, status:"neutral", detail:`Last reported ${ne}` };
     } else {
-      result.checks.earnings = { score:0, status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : marketData ? "Next earnings date not found — check before buying" : "Checking earnings date…" };
+      result.checks.earnings = { score:0, status:"neutral", detail: marketData?.earningsNotListed ? "Not on the 3-month earnings calendar — check the date before buying" : marketData?.aiSkipped ? "Not checked — "+marketData.reason : marketData ? "Next earnings date not found — check before buying" : "Checking earnings date…" };
     }
 
     // HARD GATES — these override everything
@@ -830,7 +902,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
     else if (result.checks.earnings.status==="fail") rating = "DONT_BUY";
     else if (marketData?.marketStatus==="CORRECTION") rating = "DONT_BUY";
     // Never BUY without the AI checks (market, earnings date, fundamentals)
-    if (rating==="BUY" && marketData?.aiSkipped) { rating = "DONT_BUY"; result.aiBlock = true; }
+    if (rating==="BUY" && marketData?.aiSkipped && marketData?.marketSource!=="rules") { rating = "DONT_BUY"; result.aiBlock = true; }
     // v2.3 FIX 5: an unverified hard gate ("–") must not count as a pass
     if (rating==="BUY") {
       const lblU={market:"Market",trend:"Trend",entry:"Entry",fundamentals:"Fundamentals",earnings:"Earnings date"};
@@ -1085,6 +1157,8 @@ $("goBtn").onclick = async () => {
     // 1. fetch live data
     window.__tdErr = null;
     const secP = mode==="entry" ? fetchSecEps(sym) : Promise.resolve(null);
+    const idxP = mode==="entry" ? fetchIndexBars().catch(()=>null) : Promise.resolve(null);
+    const calP = mode==="entry" ? fetchEarningsCal(sym) : Promise.resolve(null);
     const d = await fetchLiveData(sym);
     // No price data (usually a mistyped ticker): stop here — no rating, and no Claude cost
     if (!d && store.get("sd2-tkey")) {
@@ -1117,6 +1191,7 @@ $("goBtn").onclick = async () => {
     }
 
     if (ai && sec) ai.sec = sec;
+    if (mode==="entry") ai = applyCodeData(ai, d, await idxP, await calP);
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
     if (mode==="entry") {
