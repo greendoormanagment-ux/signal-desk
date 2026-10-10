@@ -39,3 +39,5 @@ jobs:
           git diff --cached --quiet || git commit -m "Nightly SEC EPS + earnings calendar update"
           git pull --rebase origin main
           git push
+      - name: Sanity-check the data (emails you if something looks wrong)
+        run: python scripts/check_data.py
