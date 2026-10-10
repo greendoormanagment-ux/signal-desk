@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9</title>
+<title>Signal Desk v2.9.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,9 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
-const APP_VERSION = "v2.9";
+const APP_VERSION = "v2.9.1";
+// v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
+const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -393,7 +395,7 @@ const scanResearch = (d, rule, ai) => {
   const eps = parseFloat(fd.epsLatest), prior = parseFloat(fd.epsYearAgo);
   out.epsGrowth = (isFinite(eps)&&isFinite(prior)) ? (prior>0 ? r1((eps-prior)/prior*100) : (eps>0 ? "turnaround" : "loss")) : "";
   out.revGrowth = isFinite(parseFloat(fd.revenueGrowthPct)) ? r1(parseFloat(fd.revenueGrowthPct)) : "";
-  if (ai?.nextEarningsDate) { const dd=Math.round((new Date(ai.nextEarningsDate)-new Date())/864e5); out.daysToEarnings = dd>=0 ? dd : ""; } else out.daysToEarnings = "";
+  if (ai?.nextEarningsDate && /^\d{4}-\d{2}-\d{2}$/.test(ai.nextEarningsDate)) { const dd=daysUntil(ai.nextEarningsDate); out.daysToEarnings = dd>=0 ? dd : ""; } else out.daysToEarnings = "";
   const c = Array.isArray(d?.bars) ? d.bars.map(x=>x.c) : [];
   const ret = k => (c.length>k && c[c.length-1-k]) ? r1((c[c.length-1]/c[c.length-1-k]-1)*100) : "";
   out.ret3m = ret(63); out.ret6m = ret(126); out.ret12m = ret(252);
@@ -565,7 +567,8 @@ const sendToSheet = (h) => {
   const payload = { key:SHEET_KEY, ID:h.id, "Date":h.ts, "Mode":h.mode, "Ticker":h.symbol, "Verdict":h.verdict,
     "Score":h.score, "Price":h.price, "Setup":h.setup, "Market":h.market, "Entry Price":h.entryPrice,
     "Gain %":h.gainPct, "Action":h.action||"", "Blocked by (rule)":h.blocked||"",
-    "Notes":(/iPhone|iPad/.test(navigator.userAgent)?"iPhone":"Mac") + " · " + APP_VERSION };
+    "Notes":(/iPhone|iPad/.test(navigator.userAgent)?"iPhone":"Mac") + " · " + APP_VERSION
+      + (__epsList?.asOf ? " · EPS data " + __epsList.asOf : "") + (__earnCal?.asOf ? " · calendar " + __earnCal.asOf : "") }; // v2.9.1: data age
   const R = h.research || {};
   Object.assign(payload, { "Sector":R.sector, "Industry":R.industry, "% vs 50DMA":R.pct50, "% vs 200DMA":R.pct200, "% vs Pivot":R.pctPivot,
     "RSI":R.rsi, "Vol Ratio":R.volRatio, "EPS Growth %":R.epsGrowth, "Revenue Growth %":R.revGrowth, "Days to Earnings":R.daysToEarnings,
@@ -886,7 +889,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
     // FIX 4: Earnings — no new buys within 14 days of a report
     const ne = marketData?.nextEarningsDate;
     if (ne && /^\d{4}-\d{2}-\d{2}$/.test(ne)) {
-      const days = Math.ceil((new Date(ne+"T16:00:00") - new Date()) / 864e5);
+      const days = daysUntil(ne);
       result.earningsDays = days;
       if (days >= 0 && days <= 14) result.checks.earnings = { score:0, status:"fail", detail:`Earnings ${ne} — in ${days} day${days===1?"":"s"}. No new buys within 14 days of a report` };
       else if (days > 14) result.checks.earnings = { score:0, status:"pass", detail:`Next earnings ${ne} (${days} days away)${marketData?.earningsSource==="calendar"?" · earnings calendar":""}${marketData?.aiEarningsDate?` · Claude found ${marketData.aiEarningsDate}`:""}` };
@@ -1320,7 +1323,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
   if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
   if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
-  if (ai?.nextEarningsDate) { const days=Math.round((new Date(ai.nextEarningsDate)-new Date())/864e5); if (days>=0 && days<=21) C.push(`Earnings in <b>${days} days</b> (${ai.nextEarningsDate}) — expect a big move around the report.`); }
+  if (ai?.nextEarningsDate && /^\d{4}-\d{2}-\d{2}$/.test(ai.nextEarningsDate)) { const days=daysUntil(ai.nextEarningsDate); if (days>=0 && days<=21) C.push(`Earnings in <b>${days} days</b> (${ai.nextEarningsDate}) — expect a big move around the report.`); }
   if (mode==="entry" && ai?.marketStatus==="PRESSURE" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST")) C.push(`Market under <b>PRESSURE</b> — buys fail more often; consider paper.`);
   if (mode==="entry" && Array.isArray(window.openTrades)) {
     const mine = window.openTrades.filter(t => String(t.ticker).toUpperCase()===String(sym).toUpperCase());
