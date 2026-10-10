@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.8.1</title>
+<title>Signal Desk v2.8.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.8.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.8.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.8.1";
+const APP_VERSION = "v2.8.2";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -1315,7 +1315,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   }
   // cautions — information only, never change the rating
   const C = [];
-  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); if (epv && price && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); if (rule.origStopSource && rule.origStopSource!=="sheet") C.push(`Original stop not found in your Trades sheet — using ${rule.origStopSource==="your stop"?"your stop":"8% below your buy price"} ($${fmt(rule.origStop)}) as the starting stop. Steps are measured from it.`); if (!rule.userStop) C.push(`Tip: type <b>your current stop</b> (the one at your broker) in "Your stop $" — the app will say keep it or raise it, and never show a lower one.`); }
+  if (mode!=="entry") { const epv=parseFloat(String($("ep")?.value||"").replace(/[$,]/g,"")); const fromSheet = !!(window.posTrade && Math.abs(parseFloat(window.posTrade.entryPrice)-epv) < 0.005); if (epv && price && !fromSheet && Math.abs(epv-price)/price < 0.002) C.push(`Entry price equals today's price — did you enter <b>your buy price</b>? The stop and gain numbers depend on it.`); if (!String($("ed")?.value||"").trim()) C.push(`Tip: add your <b>entry date</b> so the trailing stop uses your real high since buying.`); if (rule.origStopSource && rule.origStopSource!=="sheet") C.push(`Original stop not found in your Trades sheet — using ${rule.origStopSource==="your stop"?"your stop":"8% below your buy price"} ($${fmt(rule.origStop)}) as the starting stop. Steps are measured from it.`); if (!rule.userStop) C.push(`Tip: type <b>your current stop</b> (the one at your broker) in "Your stop $" — the app will say keep it or raise it, and never show a lower one.`); }
   if (mode==="entry" && price && d?.sma50) { const ext=(price/d.sma50-1)*100; if (ext>20) C.push(`Already <b>${ext.toFixed(0)}% above its 50-day</b> — breakouts after a big run fail more often.`); }
   if (mode==="entry" && d?.rsi > 70) C.push(`RSI ${d.rsi.toFixed(0)} — <b>overbought</b>; sharp pullbacks are common.`);
   if (d?.avgVolume && d.avgVolume < 1e6) C.push(`<b>Thinly traded</b> (~${fmtVol(d.avgVolume)} shares/day) — use limit orders; fills can differ from the quote.`);
