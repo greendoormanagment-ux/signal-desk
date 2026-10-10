@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.7</title>
+<title>Signal Desk v2.7.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.7<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.7.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.7";
+const APP_VERSION = "v2.7.1";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -413,13 +413,20 @@ const loadOpenTrades = async () => {
   try { const r = await fetch(SHEET_URL + "?action=open&key=" + encodeURIComponent(SHEET_KEY));
         const j = await r.json(); if (Array.isArray(j.open)) window.openTrades = j.open; } catch(e) { /* offline or old script — warnings just won't show */ }
 };
-// v2.7: free EPS check from SEC filings (via the sheet script) — runs before any paid AI call
+// v2.7.1: free EPS check from SEC filings — eps.json is rebuilt every night by a GitHub job (scripts/build_eps.py)
+let __epsList = null;
 const fetchSecEps = async (sym) => {
-  try { const r = await fetch(SHEET_URL + "?action=eps&key=" + encodeURIComponent(SHEET_KEY) + "&sym=" + encodeURIComponent(sym));
-        const j = await r.json(); return (j && j.status) ? j : null; } catch(e) { return null; }
+  try {
+    if (!__epsList) { const r = await fetch("eps.json?d=" + new Date().toISOString().slice(0,10)); __epsList = await r.json(); }
+    const row = __epsList?.data?.[String(sym).toUpperCase()];
+    if (!row) return { status:"not in SEC list" };
+    const [qEnd, eps, prevEps, growth, filed] = row;
+    const staleDays = Math.round((Date.now() - new Date(qEnd+"T00:00:00").getTime()) / 864e5);
+    return { status:"ok", qEnd, eps, prevEps, growth, filed, staleDays, asOf: __epsList.asOf };
+  } catch(e) { return null; }
 };
 const secUsable = (s) => !!(s && s.status==="ok" && s.staleDays <= 135);
-const secFd = (s) => secUsable(s) ? { epsLatest:s.eps, epsYearAgo:s.prevEps, quarter:`qtr ended ${s.qEnd} · SEC official EPS, includes one-time items`, _sec:true } : null;
+const secFd = (s) => secUsable(s) ? { epsLatest:s.eps, epsYearAgo:s.prevEps, quarter:`SEC · qtr ended ${s.qEnd} · updated ${s.asOf} · includes one-time items`, _sec:true } : null;
 // v2.6.3: Position Review fills Entry / Date / Stop from your open row in the Trades sheet.
 // Stop used = "Current Stop" column → else the last "STOP RAISED to $X" in Notes → else the Stop column.
 const tradeStop = (t) => {
