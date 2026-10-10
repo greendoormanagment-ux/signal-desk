@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.2</title>
+<title>Signal Desk v2.9.3</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.2<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.3<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
-const APP_VERSION = "v2.9.2";
+const APP_VERSION = "v2.9.3";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -408,6 +408,12 @@ const scanResearch = (d, rule, ai) => {
   out.riskPer = (p && typeof rule?.stopLoss==="number" && rule.stopLoss < p) ? r2(p - rule.stopLoss) : "";
   out.spy50 = r1(ai?.idx?.spy50); out.qqq50 = r1(ai?.idx?.qqq50);
   out.spyDD = (typeof ai?.idx?.spyDD==="number") ? ai.idx.spyDD : ""; out.qqqDD = (typeof ai?.idx?.qqqDD==="number") ? ai.idx.qqqDD : "";
+  // v2.9.3: Grok review items — logged only, no rule uses them
+  out.baseDepth = r1(d?.baseDepth); out.baseDays = (typeof d?.baseDays==="number") ? d.baseDays : "";
+  out.sma50slope = (typeof d?.sma50slope==="number" && isFinite(d.sma50slope)) ? Math.round(d.sma50slope*100)/100 : "";
+  out.vol5 = (typeof d?.vol5ratio==="number" && isFinite(d.vol5ratio)) ? Math.round(d.vol5ratio*100)/100 : "";
+  out.dollarVol = (p && d?.avgVolume) ? r1(p*d.avgVolume/1e6) : "";
+  out.rsp50 = r1(ai?.idx?.rsp50);
   out.rsScore = (typeof ai?.rsCheck?.score==="number") ? ai.rsCheck.score : "";
   return out;
 };
@@ -455,11 +461,11 @@ const fetchIndexBars = async () => {
   const day = etStamp(new Date()).slice(0,10);
   try { const c = JSON.parse(store.get("sd2-idx") || "null"); if (c && c.day === day && c.post === (new Date().getHours() >= 16)) return c.data; } catch(e) {}
   const get = u => fetch(u).then(r=>r.json()).catch(()=>null);
-  const [spy, qqq] = await Promise.all(["SPY","QQQ"].map(t => get(`https://api.twelvedata.com/time_series?symbol=${t}&interval=1day&outputsize=320&apikey=${tdKey}`)));
+  const [spy, qqq, rsp] = await Promise.all(["SPY","QQQ","RSP"].map(t => get(`https://api.twelvedata.com/time_series?symbol=${t}&interval=1day&outputsize=320&apikey=${tdKey}`)));
   const conv = j => (j?.values||[]).map(v=>({date:String(v.datetime).slice(0,10), c:+v.close, v:+v.volume})).reverse();
-  const data = { SPY: conv(spy), QQQ: conv(qqq) };
+  const data = { SPY: conv(spy), QQQ: conv(qqq), RSP: conv(rsp) }; // v2.9.3: RSP = equal-weight S&P (logged only)
   // drop today's unfinished bar while the market is open (judge completed days only)
-  for (const k of ["SPY","QQQ"]) { const b = data[k]; if (b.length && b[b.length-1].date === day && new Date().getHours() < 16) b.pop(); }
+  for (const k of ["SPY","QQQ","RSP"]) { const b = data[k]; if (b.length && b[b.length-1].date === day && new Date().getHours() < 16) b.pop(); }
   if (data.SPY.length < 60 || data.QQQ.length < 60) return null;
   store.set("sd2-idx", JSON.stringify({ day, post:new Date().getHours() >= 16, data }));
   return data;
@@ -501,6 +507,7 @@ const applyCodeData = (ai, d, ix, cal) => {
     ai.marketNote = mk.note + (ai.aiMarketStatus && ai.aiMarketStatus !== mk.status ? ` · Claude's read: ${ai.aiMarketStatus}` : "");
     ai.marketSource = "rules";
     ai.idx = { spy50: (mk.a.last/mk.a.ma-1)*100, qqq50: (mk.b.last/mk.b.ma-1)*100, spyDD: mk.a.dd, qqqDD: mk.b.dd }; // v2.9.2: logged for review
+    if (ix.RSP && ix.RSP.length >= 60) { const r = idxStatus(ix.RSP); ai.idx.rsp50 = (r.last/r.ma-1)*100; ai.idx.rspRising = r.rising; } // v2.9.3: equal-weight, logged only
     const rs = rsFromBars(d?.bars, ix.SPY);
     if (rs) { if (ai.rsCheck) rs.detail += ` · Claude: ${ai.rsCheck.status}`; ai.rsCheck = rs; }
   }
@@ -583,7 +590,8 @@ const sendToSheet = (h) => {
     "RSI":R.rsi, "Vol Ratio":R.volRatio, "EPS Growth %":R.epsGrowth, "Revenue Growth %":R.revGrowth, "Days to Earnings":R.daysToEarnings,
     "3M Return %":R.ret3m, "6M Return %":R.ret6m, "12M Return %":R.ret12m, "RS Score":R.rsScore, "Breakout Vol":R.boVol,
     "Checks":R.checks, "Pivot":R.pivotLvl, "App Stop":R.appStop, "Risk/Share":R.riskPer,
-    "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD });
+    "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD,
+    "Base Depth %":R.baseDepth, "Base Days":R.baseDays, "50D Slope %":R.sma50slope, "5D Vol Ratio":R.vol5, "Avg $Vol (M)":R.dollarVol, "RSP vs 50D %":R.rsp50 });
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
@@ -722,6 +730,13 @@ const computeIndicators = (b) => {
   // Pivot = highest high of the prior year, EXCLUDING the last 5 sessions
   const base = b.slice(Math.max(0,n-257), n-5);
   if (base.length) out.pivot = Math.max(...base.map(x=>x.h));
+  // v2.9.3 (logging only): base depth/length since the pivot high, 50-day slope, recent volume vs average
+  if (out.pivot) {
+    let pi = -1; for (let i=base.length-1;i>=0;i--) if (base[i].h === out.pivot) { pi = Math.max(0,n-257) + i; break; }
+    if (pi >= 0) { const lo = Math.min(...b.slice(pi).map(x=>x.l)); out.baseDays = n-1-pi; out.baseDepth = (out.pivot - lo) / out.pivot * 100; }
+  }
+  const s50prev = sma(closes,50,n-10); if (out.sma50 && s50prev) out.sma50slope = (out.sma50/s50prev - 1) * 100;
+  const v5 = sma(b.map(x=>x.v),5); if (v5 && out.avgVol50) out.vol5ratio = v5 / out.avgVol50;
   // Breakout = a close above the pivot within the last 5 sessions; measure that day's volume
   if (out.pivot) {
     for (let i=n-5;i<n;i++) {
