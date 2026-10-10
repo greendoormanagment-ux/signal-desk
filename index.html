@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.1</title>
+<title>Signal Desk v2.9.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
-const APP_VERSION = "v2.9.1";
+const APP_VERSION = "v2.9.2";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -400,6 +400,14 @@ const scanResearch = (d, rule, ai) => {
   const ret = k => (c.length>k && c[c.length-1-k]) ? r1((c[c.length-1]/c[c.length-1-k]-1)*100) : "";
   out.ret3m = ret(63); out.ret6m = ret(126); out.ret12m = ret(252);
   out.boVol = (d?.breakout && typeof d.breakout.volRatio==="number") ? Math.round(d.breakout.volRatio*100)/100 : ""; // v2.8.3: breakout-day volume ratio
+  // v2.9.2: record every check's result + the levels the app suggested + market detail (logging only)
+  const sym1 = s => s==="pass" ? "✓" : s==="fail" ? "✗" : s ? "~" : "";
+  out.checks = rule?.checks ? Object.entries(rule.checks).filter(([,v])=>v&&v.status).map(([k,v])=>k+sym1(v.status)).join(" ") : "";
+  const r2 = x => (typeof x==="number" && isFinite(x)) ? Math.round(x*100)/100 : "";
+  out.pivotLvl = r2(rule?.pivot); out.appStop = r2(rule?.stopLoss);
+  out.riskPer = (p && typeof rule?.stopLoss==="number" && rule.stopLoss < p) ? r2(p - rule.stopLoss) : "";
+  out.spy50 = r1(ai?.idx?.spy50); out.qqq50 = r1(ai?.idx?.qqq50);
+  out.spyDD = (typeof ai?.idx?.spyDD==="number") ? ai.idx.spyDD : ""; out.qqqDD = (typeof ai?.idx?.qqqDD==="number") ? ai.idx.qqqDD : "";
   out.rsScore = (typeof ai?.rsCheck?.score==="number") ? ai.rsCheck.score : "";
   return out;
 };
@@ -470,7 +478,7 @@ const marketFromIndexes = (ix) => {
   const a = idxStatus(ix.SPY), b = idxStatus(ix.QQQ);
   const st = (a.st==="CORRECTION" && b.st==="CORRECTION") ? "CORRECTION" : (a.st!=="UPTREND" || b.st!=="UPTREND") ? "PRESSURE" : "UPTREND";
   const t = (n,x) => `${n} ${x.last>x.ma?"above":"below"} its ${x.rising?"rising":"falling"} 50-day, ${x.dd} distribution day${x.dd===1?"":"s"}`;
-  return { status: st, note: `${t("S&P (SPY)",a)} · ${t("Nasdaq (QQQ)",b)} · rules-based` };
+  return { status: st, note: `${t("S&P (SPY)",a)} · ${t("Nasdaq (QQQ)",b)} · rules-based`, a, b };
 };
 // Relative strength vs the S&P 500: Mansfield RS (vs its 1-year average) + 3-month outperformance
 const rsFromBars = (stockBars, spyBars) => {
@@ -492,6 +500,7 @@ const applyCodeData = (ai, d, ix, cal) => {
     ai.marketStatus = mk.status;
     ai.marketNote = mk.note + (ai.aiMarketStatus && ai.aiMarketStatus !== mk.status ? ` · Claude's read: ${ai.aiMarketStatus}` : "");
     ai.marketSource = "rules";
+    ai.idx = { spy50: (mk.a.last/mk.a.ma-1)*100, qqq50: (mk.b.last/mk.b.ma-1)*100, spyDD: mk.a.dd, qqqDD: mk.b.dd }; // v2.9.2: logged for review
     const rs = rsFromBars(d?.bars, ix.SPY);
     if (rs) { if (ai.rsCheck) rs.detail += ` · Claude: ${ai.rsCheck.status}`; ai.rsCheck = rs; }
   }
@@ -572,7 +581,9 @@ const sendToSheet = (h) => {
   const R = h.research || {};
   Object.assign(payload, { "Sector":R.sector, "Industry":R.industry, "% vs 50DMA":R.pct50, "% vs 200DMA":R.pct200, "% vs Pivot":R.pctPivot,
     "RSI":R.rsi, "Vol Ratio":R.volRatio, "EPS Growth %":R.epsGrowth, "Revenue Growth %":R.revGrowth, "Days to Earnings":R.daysToEarnings,
-    "3M Return %":R.ret3m, "6M Return %":R.ret6m, "12M Return %":R.ret12m, "RS Score":R.rsScore, "Breakout Vol":R.boVol });
+    "3M Return %":R.ret3m, "6M Return %":R.ret6m, "12M Return %":R.ret12m, "RS Score":R.rsScore, "Breakout Vol":R.boVol,
+    "Checks":R.checks, "Pivot":R.pivotLvl, "App Stop":R.appStop, "Risk/Share":R.riskPer,
+    "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD });
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
