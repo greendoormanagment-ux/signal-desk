@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.8.3</title>
+<title>Signal Desk v2.9</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.8.3<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -374,8 +374,8 @@ const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300)
 const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans" + (window.sheetStatus||""); };
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
-const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.8.3";
+const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
+const APP_VERSION = "v2.9";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -507,7 +507,7 @@ const tradeStop = (t) => {
   if (m.length) return { v: parseFloat(m[m.length-1][1].replace(/,/g,"")), src: "last \"STOP RAISED\" in Notes" };
   return t.stop ? { v: +t.stop, src: "Stop column" } : null;
 };
-const tradeLabel = (t) => `${t.type||"Trade"} · ${(String(t.notes||"").split(/[.;]/)[0]||"").slice(0,28) || ("row "+t.row)}`;
+const tradeLabel = (t) => `${t.ticker} · ${t.account || t.type || ("row "+t.row)}`; // v2.9: account codes (T4k, P4k, Kids, Dad, IRA, Paper)
 const origStopFor = (sym) => (window.posTrade && String(window.posTrade.ticker).toUpperCase()===String(sym||"").trim().toUpperCase()) ? window.posTrade.stop : "";
 const applyTrade = (t, many) => {
   window.posTrade = t;
@@ -515,7 +515,7 @@ const applyTrade = (t, many) => {
   $("ep").value = t.entryPrice || ""; $("ed").value = t.entryDate || ""; $("cs").value = st ? st.v : "";
   const pick = many && many.length > 1
     ? ` <select id="posPick" class="inp sm" style="padding:4px 6px;font-size:12px;min-width:0">${many.map((x,i)=>`<option value="${i}"${x===t?" selected":""}>${tradeLabel(x)}</option>`).join("")}</select>` : "";
-  $("posFill").innerHTML = `✓ Filled from your Trades sheet — row ${t.row} · ${t.type||""}${st?` · stop from ${st.src}`:""}. Change any box to override.${pick}${many && many.length>1?`<br>You have <b>${many.length}</b> open ${t.ticker} rows — pick the one you're reviewing.`:""}`;
+  $("posFill").innerHTML = `✓ Filled from your Trades sheet — ${t.ticker} · ${t.account||t.type||""} (row ${t.row})${st?` · stop from ${st.src}`:""}. Change any box to override.${pick}${many && many.length>1?`<br>You have <b>${many.length}</b> open ${t.ticker} rows — pick the one you're reviewing.`:""}`;
   $("posFill").style.display = "block";
   const sel = $("posPick"); if (sel) sel.onchange = () => applyTrade(many[+sel.value], many);
 };
