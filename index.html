@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.6.4</title>
+<title>Signal Desk v2.7</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.6.4<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.7<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -375,7 +375,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-7Kq4wP9x";
-const APP_VERSION = "v2.6.4";
+const APP_VERSION = "v2.7";
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -413,6 +413,13 @@ const loadOpenTrades = async () => {
   try { const r = await fetch(SHEET_URL + "?action=open&key=" + encodeURIComponent(SHEET_KEY));
         const j = await r.json(); if (Array.isArray(j.open)) window.openTrades = j.open; } catch(e) { /* offline or old script — warnings just won't show */ }
 };
+// v2.7: free EPS check from SEC filings (via the sheet script) — runs before any paid AI call
+const fetchSecEps = async (sym) => {
+  try { const r = await fetch(SHEET_URL + "?action=eps&key=" + encodeURIComponent(SHEET_KEY) + "&sym=" + encodeURIComponent(sym));
+        const j = await r.json(); return (j && j.status) ? j : null; } catch(e) { return null; }
+};
+const secUsable = (s) => !!(s && s.status==="ok" && s.staleDays <= 135);
+const secFd = (s) => secUsable(s) ? { epsLatest:s.eps, epsYearAgo:s.prevEps, quarter:`qtr ended ${s.qEnd} · SEC official EPS, includes one-time items`, _sec:true } : null;
 // v2.6.3: Position Review fills Entry / Date / Stop from your open row in the Trades sheet.
 // Stop used = "Current Stop" column → else the last "STOP RAISED to $X" in Notes → else the Stop column.
 const tradeStop = (t) => {
@@ -766,8 +773,9 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
     // RS and Fundamentals come from Claude (web search)
     result.checks.rs           = marketData?.rsCheck           || { score:Math.round(SCORE_WEIGHTS.rs*0.5),           status:"neutral", detail: marketData?.aiSkipped ? "Not checked — "+marketData.reason : "Awaiting web data" };
     // Fundamentals — rule-enforced: latest quarter EPS must be positive and ≥25% above the year-ago quarter
-    const fd = marketData?.fundamentals;
     const num = v => (typeof v==="number" && isFinite(v)) ? v : (typeof v==="string" && v.trim()!=="" && isFinite(+v) ? +v : null);
+    let fd = marketData?.fundamentals;
+    if (!fd || num(fd.epsLatest)===null) fd = secFd(marketData?.sec) || fd;
     if (fd) {
       const eps = num(fd.epsLatest), prior = num(fd.epsYearAgo), rev = num(fd.revenueGrowthPct);
       const revTxt = rev!==null ? ` · revenue ${rev>=0?"+":""}${rev.toFixed(0)}%` : "";
@@ -849,7 +857,7 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       result.entryDateUsed = true;
     }
     result.hiSinceEntry = hiSince;
-    // v2.6.4 STOP RULE A2 — "earn the trail" (changed 10/07/26):
+    // v2.7 STOP RULE A2 — "earn the trail" (changed 10/07/26):
     //   Step 1: until the stock has traded at +1R, keep the ORIGINAL stop (the one you sized with).
     //   Step 2: once it has traded at +1R, raise the stop to breakeven (your buy price).
     //   Step 3: once it has traded at +2R, trail = the higher of breakeven and (high since entry − 3×ATR).
@@ -1064,6 +1072,7 @@ $("goBtn").onclick = async () => {
   try {
     // 1. fetch live data
     window.__tdErr = null;
+    const secP = mode==="entry" ? fetchSecEps(sym) : Promise.resolve(null);
     const d = await fetchLiveData(sym);
     // No price data (usually a mistyped ticker): stop here — no rating, and no Claude cost
     if (!d && store.get("sd2-tkey")) {
@@ -1079,10 +1088,13 @@ $("goBtn").onclick = async () => {
 
     // 3. Claude explains + fills RS/fundamentals — ONLY when it can change the outcome (saves cost)
     const force = !!window.__forceAI; window.__forceAI = false;
-    const needAI = force || (mode==="entry" && ruleResult.rating!=="SELL" && ruleResult.checks.trend.status!=="fail" && ruleResult.checks.entry.status==="pass");
+    const sec = await secP;
+    const secFail = secUsable(sec) && (sec.eps <= 0 || (sec.growth!==null && sec.growth < 25));
+    const priceOk = mode==="entry" && ruleResult.rating!=="SELL" && ruleResult.checks.trend.status!=="fail" && ruleResult.checks.entry.status==="pass";
+    const needAI = force || (priceOk && !secFail);
     let ai;
     if (!needAI) {
-      ai = { aiSkipped:true, reason: mode==="position" ? "skipped to save cost" : "skipped: price rules already fail" };
+      ai = { aiSkipped:true, secSkip: priceOk && secFail, reason: mode==="position" ? "skipped to save cost" : (priceOk && secFail ? "skipped: SEC earnings fail the 25% EPS rule" : "skipped: price rules already fail") };
     } else {
       try { ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value); }
       catch(err) {
@@ -1092,6 +1104,7 @@ $("goBtn").onclick = async () => {
       }
     }
 
+    if (ai && sec) ai.sec = sec;
     // 4. if entry mode, re-run rule engine with AI's market/RS/fundamentals data
     let finalRule = ruleResult;
     if (mode==="entry") {
@@ -1145,7 +1158,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   const today = new Date().toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"2-digit"});
   const risk = riskDollars();
   const stop = mode==="entry" ? rule.stopLoss : (rule.effectiveStop || rule.chandelierStop || rule.hardStop);
-  // v2.6.4: plain-language stop advice for rule A2 ("earn the trail")
+  // v2.7: plain-language stop advice for rule A2 ("earn the trail")
   const stepWhy = () => rule.stopStep===3 ? `trailing stop (high since entry − 3× daily swing), never below breakeven`
     : rule.stopStep===2 ? `breakeven — it already traded at +1R ($${fmt(rule.lvl1)})` : `your original stop`;
   const nextStep = () => rule.stopStep===1 ? `<b>Next step:</b> once it trades at <b>$${fmt(rule.lvl1)}</b> (+1R), raise your stop to <b>$${fmt(rule.lvl1 - rule.R)}</b> — your buy price (breakeven).`
@@ -1404,7 +1417,7 @@ const render = (sym, d, rule, ai, mode) => {
     else if (failed.length) why="Blocked by: "+failed.join(" · ");
     else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
   }
-  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (rule.aiBlock ? "" : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : "";
+  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (ai.secSkip ? "AI research skipped to save cost — the price setup is good, but official SEC earnings fail the 25% EPS rule. SEC numbers include one-time items, so tap RUN AI CHECK if you want Claude to look for adjusted earnings." : rule.aiBlock ? "" : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : "";
   $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || skipNote);
   $("aiForceBtn").style.display = ai?.aiSkipped ? "inline-block" : "none";
   $("explText").style.whiteSpace = "pre-line";
