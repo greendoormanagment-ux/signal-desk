@@ -3,7 +3,7 @@
 Stock screener for Tony's 30-day rules test (O'Neil breakouts/pullbacks, Weinstein stages, chandelier stops).
 **Rules decide; Claude only explains.** Live app: https://greendoormanagment-ux.github.io/signal-desk/
 
-_Last updated: Oct 10, 2026 · app v2.9.2 · sheet script v8_
+_Last updated: Oct 10, 2026 · app v2.9.3 · sheet script v8_
 
 ## Mission
 > *Signal Desk finds high-quality setups, sizes the risk, enforces the exits, and keeps score honestly — so every rule has to earn its place.*
@@ -47,7 +47,7 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 - Also update the stop order at the broker (all shares, GTC).
 
 ## Scans tab — extra columns (v2.9.2, for the reviews)
-- Logged automatically: **Checks** (each check ✓ pass / ✗ fail / ~ neutral), **Pivot**, **App Stop**, **Risk/Share**, **SPY / QQQ vs 50D %**, **SPY / QQQ Dist Days**; Notes shows app version + date of the EPS and calendar data used.
+- Logged automatically: **Checks** (each check ✓ pass / ✗ fail / ~ neutral), **Pivot**, **App Stop**, **Risk/Share**, **SPY / QQQ vs 50D %**, **SPY / QQQ Dist Days**; since v2.9.3 also **Base Depth %**, **Base Days** (since the pivot high), **50D Slope %**, **5D Vol Ratio** (is volume drying up?), **Avg $Vol (M)**, **RSP vs 50D %** (equal-weight S&P — is the average stock keeping up?); Notes shows app version + date of the EPS and calendar data used.
 - Fill in yourself: **My Call** (Bought / Paper / Skipped / Watching) and **Why** (dropdown) — especially when you skip a BUY or buy something the app didn't rate BUY. Re-sent scans never overwrite these.
 - Trades **AB = Planned Entry** (the app's price when you decided) → **AC = Slippage %** (how far your real fill was from plan).
 - Rule of thumb: save now anything that can't be rebuilt later (your decisions, what the app said, fill prices). Prices and history can be re-downloaded.
@@ -60,5 +60,5 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 - If GitHub emails "scheduled workflow disabled": Actions tab → Enable workflow.
 
 ## History
-- v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes · v2.9.1 one shared earnings day count (log = rule), data age in Notes · v2.9.2 logs each check + pivot/stop/risk + SPY/QQQ detail; nightly history snapshots + data sanity check
+- v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes · v2.9.1 one shared earnings day count (log = rule), data age in Notes · v2.9.2 logs each check + pivot/stop/risk + SPY/QQQ detail; nightly history snapshots + data sanity check · v2.9.3 logs base depth/length, 50-day slope, 5-day volume, dollar volume, RSP (Grok review; Fix List #52–60)
 - The sheet key in `index.html` must match `SECRET` in the sheet script. If it's ever changed, change both and publish a new script version.
