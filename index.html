@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.5</title>
+<title>Signal Desk v2.9.6</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.5<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.6<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -289,7 +289,7 @@ input,button{font-family:inherit}
     <textarea class="inp" id="hcList" rows="8" placeholder="GOOGL, 903&#10;AAPL, 790&#10;TSLA, 646&#10;PLTR, 603"></textarea>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn-go" id="hcBtn" style="flex:1">RUN HEALTH CHECK</button>
-      <button class="btn-sm" id="hcRevBtn" style="display:none">CHECK REVENUE TREND</button>
+      <button class="btn-sm" id="hcRevBtn" style="display:none">CHECK REVENUE TREND (SEC)</button>
       <button class="btn-sm" id="hcCsv" style="display:none">COPY CSV</button>
     </div>
     <div id="hcProg" style="font-size:11px;color:var(--blue);margin-top:10px;display:none"></div>
@@ -381,7 +381,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.9.5";
+const APP_VERSION = "v2.9.6";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -1758,36 +1758,27 @@ $("hcBtn").onclick = async () => {
 };
 
 $("hcRevBtn").onclick = async () => {
-  const aKey = store.get("sd2-akey");
-  if (!aKey) { $("hcProg").textContent="Add your Anthropic key first."; return; }
+  // v2.9.6: revenue trend from official SEC filings (revenue.json, rebuilt nightly) — no AI web search
   const syms = hcResults.filter(r=>!r.error).map(r=>r.sym);
   if (!syms.length) return;
   $("hcRevBtn").disabled = true; $("hcProg").style.display="block";
-  $("hcProg").textContent = `Asking Claude for revenue trends on ${syms.length} holdings (web search, ~1 min)…`;
+  $("hcProg").textContent = `Reading SEC revenue filings for ${syms.length} holdings…`;
   try {
-    const sys = `You look up facts only. For each ticker, find year-over-year revenue growth for the two most recently REPORTED quarters. ETFs/funds: use null. Respond ONLY with raw JSON: {"TICKER":{"latestPct":number|null,"priorPct":number|null,"quarters":"e.g. Q2'26, Q1'26"}}`;
-    const msgs = [{role:"user",content:"Tickers: "+syms.join(", ")}];
-    let text = "";
-    for (let turn=0; turn<5; turn++) {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":aKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:6000,system:sys,messages:msgs,tools:[{type:"web_search_20250305",name:"web_search",max_uses:Math.min(10,syms.length+2)}]})});
-      if (!res.ok) { const eb = await res.json().catch(()=>({})); throw new Error("API "+res.status+": "+(eb?.error?.message||res.statusText)); }
-      const data = await res.json();
-      text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n") || text;
-      if (data.stop_reason !== "pause_turn") break;
-      msgs.push({role:"assistant",content:data.content});
-    }
-    const clean = text.replace(/```json\n?|```\n?/g,""); const j = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}")+1));
+    const rj = await fetch("revenue.json?d=" + new Date().toISOString().slice(0,10)).then(r=>{ if(!r.ok) throw new Error("revenue.json not published yet — the nightly job builds it"); return r.json(); });
+    const D = rj.data || {}; let found = 0, missing = [];
+    const pct = x => x===null||x===undefined ? "?" : (x>=0?"+":"")+Math.round(x)+"%";
     hcResults.forEach(r => {
-      const v = j[r.sym]; if (!v || r.error) return;
-      const a = typeof v.latestPct==="number"?v.latestPct:null, b = typeof v.priorPct==="number"?v.priorPct:null;
-      if (a===null && b===null) return;
-      r.revNote = `${a!==null?(a>=0?"+":"")+a.toFixed(0)+"%":"?"} latest, ${b!==null?(b>=0?"+":"")+b.toFixed(0)+"%":"?"} prior${v.quarters?" ("+v.quarters+")":""}`;
-      r.revFlag = a!==null && b!==null && a<0 && b<0;
+      if (r.error) return;
+      const v = D[r.sym] || D[r.sym.replace(".","-")];
+      if (!v) { r.revNote = "no SEC revenue data (fund, foreign or bank) — check Finviz"; r.revFlag = false; missing.push(r.sym); return; }
+      found++;
+      const [qEnd, , , g1, pEnd, g2, filed] = v;
+      const age = Math.round((Date.now() - new Date(qEnd+"T12:00:00")) / 864e5);
+      r.revNote = `${pct(g1)} qtr ended ${qEnd}, ${pct(g2)} prior${pEnd?" ("+pEnd+")":""} · SEC filing ${filed}${age>135?" · ⚠ older than 4½ months — check Finviz for a newer report":""}`;
+      r.revFlag = typeof g1==="number" && typeof g2==="number" && g1<0 && g2<0;
     });
     store.set("sd2-hc-last", JSON.stringify(hcResults)); hcRender();
-    $("hcProg").textContent = "Revenue trends added. Any holding with two straight quarters of shrinking revenue is marked PIVOT.";
+    $("hcProg").textContent = `Revenue from SEC filings (updated ${rj.asOf}): ${found} found` + (missing.length?`, not in SEC data: ${missing.join(", ")}`:"") + ". Two straight quarters of shrinking revenue = PIVOT.";
   } catch(e) { $("hcProg").textContent = "Revenue check failed: " + e.message; }
   finally { $("hcRevBtn").disabled = false; }
 };
