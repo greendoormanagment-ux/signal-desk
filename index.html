@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.4</title>
+<title>Signal Desk v2.9.5</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.4<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.5<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -155,6 +155,10 @@ input,button{font-family:inherit}
   <div>
     <label>TWELVE DATA API KEY (twelvedata.com — free)</label>
     <input class="inp key" id="tdKey" placeholder="paste key">
+  </div>
+  <div>
+    <label>SHEET KEY (connects your Decision Log — the gd-sd-… key from your Apps Script line 1)</label>
+    <input class="inp key" id="sKey" placeholder="gd-sd-...">
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <button class="btn-sm" id="saveKeys">SAVE & TEST</button>
@@ -375,8 +379,9 @@ const saveLog = () => { store.set("sd2-log", JSON.stringify(scanLog.slice(0,300)
 const updateLogCount = () => { $("logCount").textContent = scanLog.length + " scans" + (window.sheetStatus||""); };
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
-const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
-const APP_VERSION = "v2.9.4";
+// v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
+let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
+const APP_VERSION = "v2.9.5";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -419,6 +424,7 @@ const scanResearch = (d, rule, ai) => {
   out.sma200slope = (typeof d?.sma200slope==="number" && isFinite(d.sma200slope)) ? Math.round(d.sma200slope*100)/100 : "";
   out.boDate = d?.breakout?.date ? String(d.breakout.date).slice(0,10) : "";
   out.boAgo = (typeof d?.breakout?.ago==="number") ? d.breakout.ago : "";
+  out.atrPct = (p && typeof d?.atr==="number" && d.atr > 0) ? Math.round(d.atr/p*1000)/10 : ""; // v2.9.5: ATR as % of price (logging only)
   out.rsScore = (typeof ai?.rsCheck?.score==="number") ? ai.rsCheck.score : "";
   return out;
 };
@@ -433,6 +439,7 @@ const canonSector = s => SECTORS.find(x=>normSector(x)===normSector(s)) || s;
 window.openTrades = null;
 setTimeout(()=>{ try{ loadOpenTrades(); }catch(e){} }, 0);
 const loadOpenTrades = async () => {
+  if (!SHEET_KEY) return;
   try { const r = await fetch(SHEET_URL + "?action=open&key=" + encodeURIComponent(SHEET_KEY));
         const j = await r.json(); if (Array.isArray(j.open)) window.openTrades = j.open; } catch(e) { /* offline or old script — warnings just won't show */ }
 };
@@ -584,6 +591,7 @@ const showTs = (ts) => { if (!ts || /ET$/.test(ts)) return ts||""; const d=new D
 })();
 const sendToSheet = (h) => {
   if (!h) return;
+  if (!SHEET_KEY) { window.sheetStatus = " · sheet ✗ (no sheet key — tap Setup)"; try { updateLogCount(); } catch(e) {} return; }
   if (!h.id) h.id = Date.now() + "-" + h.symbol;
   const payload = { key:SHEET_KEY, ID:h.id, "Date":h.ts, "Mode":h.mode, "Ticker":h.symbol, "Verdict":h.verdict,
     "Score":h.score, "Price":h.price, "Setup":h.setup, "Market":h.market, "Entry Price":h.entryPrice,
@@ -597,7 +605,7 @@ const sendToSheet = (h) => {
     "Checks":R.checks, "Pivot":R.pivotLvl, "App Stop":R.appStop, "Risk/Share":R.riskPer,
     "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD,
     "Base Depth %":R.baseDepth, "Base Days":R.baseDays, "50D Slope %":R.sma50slope, "5D Vol Ratio":R.vol5, "Avg $Vol (M)":R.dollarVol, "RSP vs 50D %":R.rsp50,
-    "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo });
+    "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo, "ATR %":R.atrPct });
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
@@ -610,18 +618,20 @@ updateLogCount();
 const refreshSetupBar = () => {
   const a = store.get("sd2-akey"), t = store.get("sd2-tkey");
   const bar = $("setupBar");
-  if (a && t) { bar.textContent="● LIVE DATA + AI ON — tap to update keys"; bar.className="setup-bar ok"; }
+  if (a && t && !store.get("sd2-skey")) { bar.textContent="◑ Add your SHEET KEY — scans aren't logging to the Decision Log"; bar.className="setup-bar"; }
+  else if (a && t) { bar.textContent="● LIVE DATA + AI ON — tap to update keys"; bar.className="setup-bar ok"; }
   else if (a) { bar.textContent="◑ Anthropic key set — add Twelve Data for live prices"; bar.className="setup-bar"; }
   else { bar.textContent="○ SETUP NEEDED — tap to add your API keys"; bar.className="setup-bar"; }
 };
 refreshSetupBar();
 $("aKey").value = store.get("sd2-akey")||"";
 $("tdKey").value = store.get("sd2-tkey")||"";
+$("sKey").value = store.get("sd2-skey")||"";
 
 $("setupBar").onclick = () => $("setupBox").classList.toggle("open");
 
 $("saveKeys").onclick = async () => {
-  const a = $("aKey").value.trim(), t = $("tdKey").value.trim();
+  const a = $("aKey").value.trim(), t = $("tdKey").value.trim(), sk = $("sKey").value.trim();
   const stat = $("keyStat");
   stat.className="setup-stat"; stat.textContent="Testing…";
   if (!a) { stat.className="setup-stat err"; stat.textContent="Anthropic key is required."; return; }
@@ -639,11 +649,16 @@ $("saveKeys").onclick = async () => {
         .then(r=>r.json())
         .then(j=>{ if(!j?.price) throw new Error("Twelve Data key rejected: "+(j?.message||"check it")); })
     );
+    if (sk) tests.push(
+      fetch(SHEET_URL + "?action=open&key=" + encodeURIComponent(sk)).then(r=>r.json())
+        .then(j=>{ if(!Array.isArray(j?.open)) throw new Error("Sheet key rejected — check it matches line 1 of your Apps Script"); })
+    );
     await Promise.all(tests);
+    if (sk) { store.set("sd2-skey", sk); SHEET_KEY = sk; try { loadOpenTrades(); } catch(e) {} }
     store.set("sd2-akey", a);
     if (t) store.set("sd2-tkey", t);
     stat.className="setup-stat ok";
-    stat.textContent = "✓ Verified & saved" + (t?" — live data on":"");
+    stat.textContent = "✓ Verified & saved" + (t?" — live data on":"") + (sk?" — sheet connected":" — no sheet key: scans won't log");
     refreshSetupBar();
     setTimeout(()=>$("setupBox").classList.remove("open"), 1600);
   } catch(e) {
