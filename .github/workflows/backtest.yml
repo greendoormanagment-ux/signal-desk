@@ -1,0 +1,48 @@
+name: Backtest (run by hand)
+
+# Replays the live entry rules + stop rule A2 over ~9 years and compares one-change-at-a-time variants.
+# Run it from the Actions tab → "Backtest (run by hand)" → Run workflow. Results land in backtest/.
+# Read-only for the app: it never changes index.html or the nightly data.
+on:
+  workflow_dispatch:
+    inputs:
+      min_cap:
+        description: "Universe: minimum market cap today, in $ billions"
+        default: "2"
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy pandas
+      - name: Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/bt-cache
+          key: bt-cache-${{ github.run_id }}
+          restore-keys: bt-cache-
+      - name: Download price history (Yahoo, Nasdaq fallback)
+        run: python scripts/backtest/fetch_prices.py /tmp/bt-cache/prices ${{ inputs.min_cap }}
+      - name: Download SEC EPS history + earnings dates
+        run: python scripts/backtest/fetch_sec.py /tmp/bt-cache/prices /tmp/bt-cache/sec
+      - name: Run backtest
+        working-directory: scripts/backtest
+        run: python run.py /tmp/bt-cache/prices /tmp/bt-cache/sec ../../backtest
+      - name: Write report
+        working-directory: scripts/backtest
+        run: python report.py ../../backtest
+      - name: Commit results
+        run: |
+          git config user.name "signal-desk-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add backtest
+          git commit -m "Backtest results $(date +%F)" || echo "nothing to commit"
+          git pull --rebase && git push
