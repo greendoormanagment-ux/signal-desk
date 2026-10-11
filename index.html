@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.6</title>
+<title>Signal Desk v2.9.7</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.6<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.7<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -183,6 +183,11 @@ input,button{font-family:inherit}
   <button class="btn-go" id="goBtn">ANALYZE</button>
 </div>
 
+<div id="batchRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-6px 0 14px;font-size:11px;color:var(--muted)">
+  <button class="btn-sm" id="batchBtn">SCAN WATCHLIST</button>
+  <a id="batchEdit" style="cursor:pointer;text-decoration:underline">edit list</a>
+  <span id="batchStat">Same rules, no AI cost · best once a day after 4 PM ET · logged as "watchlist"</span>
+</div>
 <div id="posFill" style="display:none;margin:-6px 0 14px;font-size:12px;color:var(--muted);line-height:1.5"></div>
 
 <div class="loading" id="loading">
@@ -381,7 +386,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.9.6";
+const APP_VERSION = "v2.9.7";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -596,7 +601,7 @@ const sendToSheet = (h) => {
   const payload = { key:SHEET_KEY, ID:h.id, "Date":h.ts, "Mode":h.mode, "Ticker":h.symbol, "Verdict":h.verdict,
     "Score":h.score, "Price":h.price, "Setup":h.setup, "Market":h.market, "Entry Price":h.entryPrice,
     "Gain %":h.gainPct, "Action":h.action||"", "Blocked by (rule)":h.blocked||"",
-    "Notes":(/iPhone|iPad/.test(navigator.userAgent)?"iPhone":"Mac") + " · " + APP_VERSION
+    "Notes":(/iPhone|iPad/.test(navigator.userAgent)?"iPhone":"Mac") + " · " + APP_VERSION + (h.batch ? " · watchlist" : "")
       + (__epsList?.asOf ? " · EPS data " + __epsList.asOf : "") + (__earnCal?.asOf ? " · calendar " + __earnCal.asOf : "") }; // v2.9.1: data age
   const R = h.research || {};
   Object.assign(payload, { "Sector":R.sector, "Industry":R.industry, "% vs 50DMA":R.pct50, "% vs 200DMA":R.pct200, "% vs Pivot":R.pctPivot,
@@ -1232,10 +1237,11 @@ $("goBtn").onclick = async () => {
     const sec = await secP;
     const secFail = secUsable(sec) && (sec.eps <= 0 || (sec.growth!==null && sec.growth < 25));
     const priceOk = mode==="entry" && ruleResult.rating!=="SELL" && ruleResult.checks.trend.status!=="fail" && ruleResult.checks.entry.status==="pass";
-    const needAI = force || (priceOk && !secFail);
+    const batch = !!window.__batchRun; // v2.9.7: watchlist scans never call Claude (rules only, no cost)
+    const needAI = !batch && (force || (priceOk && !secFail));
     let ai;
     if (!needAI) {
-      ai = { aiSkipped:true, secSkip: priceOk && secFail, reason: mode==="position" ? "skipped to save cost" : (priceOk && secFail ? "skipped: SEC earnings fail the 25% EPS rule" : "skipped: price rules already fail") };
+      ai = { aiSkipped:true, secSkip: priceOk && secFail, reason: batch ? "watchlist scan — rules only (no AI)" : mode==="position" ? "skipped to save cost" : (priceOk && secFail ? "skipped: SEC earnings fail the 25% EPS rule" : "skipped: price rules already fail") };
     } else {
       try { ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value); }
       catch(err) {
@@ -1270,6 +1276,7 @@ $("goBtn").onclick = async () => {
       userStop: mode==="position" ? ($("cs").value||"") : "",
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
+      batch: !!window.__batchRun,
       research: scanResearch(d, finalRule, ai),
       id: Date.now() + "-" + sym,
       blocked: (finalRule.rating==="CHECK_FIRST") ? "UNVERIFIED — " + (finalRule.unverified||[]).join(" · ") : (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
@@ -1281,6 +1288,47 @@ $("goBtn").onclick = async () => {
     show("errbox");
   } finally {
     stopLoad(); $("goBtn").disabled=false;
+  }
+};
+
+// v2.9.7: WATCHLIST SCAN — runs the normal Entry Scan on a fixed list, one by one (rules only, no AI).
+// Paced for the free Twelve Data plan (8 requests/min, ~2 per scan). Every scan is logged with "watchlist" in Notes.
+const WATCH_DEFAULT = "MU NVDA AVGO AMD PLTR APP DELL ANET MRVL LRCX AMAT ARM ORCL GOOGL AMZN MSFT SHOP DDOG HOOD IBKR APO BX FIX PWR VRT GEV EME HWM CAT LLY ISRG MEDP SCCO KNSA XOM BP TGT ETON FCX TSLA META NFLX JPM HD NKE";
+const watchList = () => (store.get("sd2-watch") || WATCH_DEFAULT).toUpperCase().split(/[\s,;]+/).filter(Boolean);
+$("batchStat").textContent = `${watchList().length} stocks · same rules, no AI cost · best once a day after 4 PM ET`;
+$("batchEdit").onclick = () => {
+  const v = prompt("Watchlist tickers (spaces or commas). Leave empty to restore the suggested list:", watchList().join(" "));
+  if (v === null) return;
+  if (v.trim()) store.set("sd2-watch", v.trim()); else localStorage.removeItem("sd2-watch");
+  $("batchStat").textContent = `${watchList().length} stocks saved`;
+};
+let batchStop = false;
+$("batchBtn").onclick = async () => {
+  if (window.__batchRun) { batchStop = true; $("batchBtn").textContent = "STOPPING…"; return; }
+  if (!store.get("sd2-tkey")) { $("batchStat").textContent = "Add your Twelve Data key first (setup bar)."; return; }
+  if (mode !== "entry") document.querySelector('.tab[data-m="entry"]').click();
+  const list = watchList(); let done = 0, failed = [];
+  window.__batchRun = true; batchStop = false; $("batchBtn").textContent = "STOP";
+  try {
+    for (let i = 0; i < list.length && !batchStop; i++) {
+      const sym = list[i];
+      for (let attempt = 0; attempt < 2; attempt++) {
+        $("batchStat").textContent = `Scanning ${sym} (${i+1}/${list.length})…`;
+        const before = scanLog[0]?.id;
+        $("sym").value = sym; window.__tdErr = null;
+        await $("goBtn").onclick();
+        if (scanLog[0]?.id !== before && scanLog[0]?.symbol === sym) { done++; break; }
+        if (/credit|limit|429/i.test(window.__tdErr || "") && attempt === 0) {
+          for (let s = 61; s > 0 && !batchStop; s--) { $("batchStat").textContent = `Free-plan limit — waiting ${s}s, then retrying ${sym}…`; await new Promise(r=>setTimeout(r,1000)); }
+          continue;
+        }
+        failed.push(sym); break;
+      }
+      if (i < list.length - 1 && !batchStop) for (let s = 16; s > 0 && !batchStop; s--) { $("batchStat").textContent = `${done}/${list.length} done · next in ${s}s`; await new Promise(r=>setTimeout(r,1000)); }
+    }
+  } finally {
+    window.__batchRun = false; $("batchBtn").textContent = "SCAN WATCHLIST";
+    $("batchStat").textContent = `${batchStop ? "Stopped. " : "Finished. "}${done} scans logged` + (failed.length ? ` · no data: ${failed.join(", ")}` : "");
   }
 };
 
