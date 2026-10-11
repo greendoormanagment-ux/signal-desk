@@ -23,12 +23,16 @@ jobs:
         run: python scripts/build_earnings.py
       - name: Build eps.json from SEC filings
         run: python scripts/build_eps.py eps.json /tmp/companyfacts.zip
+      - name: Build revenue.json from SEC filings (same download; never blocks EPS)
+        continue-on-error: true
+        run: python scripts/build_revenue.py revenue.json /tmp/companyfacts.zip
       - name: Save a dated snapshot (history for the 30-day review + backtest)
         run: |
           D=$(date -u +%Y-%m-%d)
           mkdir -p history
           gzip -9 -c eps.json > "history/$D-eps.json.gz"
           if [ -f earnings.json ]; then gzip -9 -c earnings.json > "history/$D-earnings.json.gz"; fi
+          if [ -f revenue.json ]; then gzip -9 -c revenue.json > "history/$D-revenue.json.gz"; fi
           ls -la history | tail -3
       - name: Save to the site
         run: |
@@ -36,6 +40,7 @@ jobs:
           git config user.email "signal-desk-bot@users.noreply.github.com"
           git add eps.json history
           if [ -f earnings.json ]; then git add earnings.json; fi
+          if [ -f revenue.json ]; then git add revenue.json; fi
           git diff --cached --quiet || git commit -m "Nightly SEC EPS + earnings calendar update"
           git pull --rebase origin main
           git push
