@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.3</title>
+<title>Signal Desk v2.9.4</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.3<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.4<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -336,6 +336,7 @@ const META = {
   SCALE_OUT:    { label:"SCALE OUT",    color:"#8FB6DA", word:"Take partial profits" },
   TIGHTEN_STOP: { label:"TIGHTEN STOP", color:"#E8A33D", word:"Warning — raise the stop" },
   SELL_ALL:     { label:"SELL ALL",     color:"#E5484D", word:"Sell rule triggered — exit now" },
+  NO_DATA:      { label:"NO PRICE",     color:"#F2C14E", word:"No live price — no call made. Rescan" },
 };
 
 const LOAD_STEPS = [
@@ -375,7 +376,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 // v2.2: every scan + Bought/Passed is sent to the Google Sheet Decision Log (Scans tab)
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 const SHEET_KEY = "gd-sd-LHROA7ta90BPD5pGM77G";
-const APP_VERSION = "v2.9.3";
+const APP_VERSION = "v2.9.4";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -414,6 +415,10 @@ const scanResearch = (d, rule, ai) => {
   out.vol5 = (typeof d?.vol5ratio==="number" && isFinite(d.vol5ratio)) ? Math.round(d.vol5ratio*100)/100 : "";
   out.dollarVol = (p && d?.avgVolume) ? r1(p*d.avgVolume/1e6) : "";
   out.rsp50 = r1(ai?.idx?.rsp50);
+  // v2.9.4 (ChatGPT review): 200-day slope + breakout timing — logged only
+  out.sma200slope = (typeof d?.sma200slope==="number" && isFinite(d.sma200slope)) ? Math.round(d.sma200slope*100)/100 : "";
+  out.boDate = d?.breakout?.date ? String(d.breakout.date).slice(0,10) : "";
+  out.boAgo = (typeof d?.breakout?.ago==="number") ? d.breakout.ago : "";
   out.rsScore = (typeof ai?.rsCheck?.score==="number") ? ai.rsCheck.score : "";
   return out;
 };
@@ -591,7 +596,8 @@ const sendToSheet = (h) => {
     "3M Return %":R.ret3m, "6M Return %":R.ret6m, "12M Return %":R.ret12m, "RS Score":R.rsScore, "Breakout Vol":R.boVol,
     "Checks":R.checks, "Pivot":R.pivotLvl, "App Stop":R.appStop, "Risk/Share":R.riskPer,
     "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD,
-    "Base Depth %":R.baseDepth, "Base Days":R.baseDays, "50D Slope %":R.sma50slope, "5D Vol Ratio":R.vol5, "Avg $Vol (M)":R.dollarVol, "RSP vs 50D %":R.rsp50 });
+    "Base Depth %":R.baseDepth, "Base Days":R.baseDays, "50D Slope %":R.sma50slope, "5D Vol Ratio":R.vol5, "Avg $Vol (M)":R.dollarVol, "RSP vs 50D %":R.rsp50,
+    "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo });
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
@@ -737,12 +743,13 @@ const computeIndicators = (b) => {
   }
   const s50prev = sma(closes,50,n-10); if (out.sma50 && s50prev) out.sma50slope = (out.sma50/s50prev - 1) * 100;
   const v5 = sma(b.map(x=>x.v),5); if (v5 && out.avgVol50) out.vol5ratio = v5 / out.avgVol50;
+  if (out.sma200 && out.sma200prev) out.sma200slope = (out.sma200/out.sma200prev - 1) * 100; // v2.9.4: 200-day vs 20 sessions ago (logging only)
   // Breakout = a close above the pivot within the last 5 sessions; measure that day's volume
   if (out.pivot) {
     for (let i=n-5;i<n;i++) {
       if (b[i].c > out.pivot) {
         const av = sma(b.map(x=>x.v),50,i);
-        out.breakout = { date:b[i].date, close:b[i].c, volRatio: av? b[i].v/av : null };
+        out.breakout = { date:b[i].date, close:b[i].c, volRatio: av? b[i].v/av : null, ago: n-1-i };
         break;
       }
     }
@@ -1042,6 +1049,8 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
       result.status = "HOLD";
     }
 
+    // v2.9.4 FIX: no price = no call. Never let a missing quote ($0) trigger SELL ALL.
+    if (!(price > 0)) { result.status = "NO_DATA"; result.sellReason = ""; }
     result.hardStop = orig;
     result.sma50    = d?.sma50 || null;
     result.score    = 50; // position review score is less meaningful
@@ -1341,6 +1350,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
     }
     else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
+    else if (st==="NO_DATA") { L.push(`<b>No live price came back</b> — the app makes no sell/hold call without one. Your stop order at the broker still protects you. Check your Twelve Data key (Setup) and rescan.`); }
     else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
   }
   // cautions — information only, never change the rating
