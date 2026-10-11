@@ -26,6 +26,9 @@ jobs:
       - name: Build revenue.json from SEC filings (same download; never blocks EPS)
         continue-on-error: true
         run: python scripts/build_revenue.py revenue.json /tmp/companyfacts.zip
+      - name: Build market.json (credit spread, VIX, yield curve from FRED; logging only)
+        continue-on-error: true
+        run: python scripts/build_market.py market.json
       - name: Save a dated snapshot (history for the 30-day review + backtest)
         run: |
           D=$(date -u +%Y-%m-%d)
@@ -41,6 +44,7 @@ jobs:
           git add eps.json history
           if [ -f earnings.json ]; then git add earnings.json; fi
           if [ -f revenue.json ]; then git add revenue.json; fi
+          if [ -f market.json ]; then git add market.json; fi
           git diff --cached --quiet || git commit -m "Nightly SEC EPS + earnings calendar update"
           git pull --rebase origin main
           git push
