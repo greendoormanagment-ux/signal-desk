@@ -151,15 +151,19 @@ def main(price_dir, extra_dir, members_csv, out):
     pd.DataFrame(log, columns=["sym", "date", "action", "reason"]).to_csv(os.path.join(out, "corrections_log.csv"), index=False)
     g = pd.DataFrame(gaps); g.to_csv(os.path.join(out, "data_gaps.csv"), index=False)
     # 4) S&P 500 point-in-time coverage
-    mem = {}
-    for r in csv.DictReader(open(members_csv)):
-        mem.setdefault(r["ticker"].replace(".", "-"), []).append((r["start_date"], r["end_date"] or "9999"))
+    from run_systems import load_members          # applies the reviewed ticker renames (ticker_aliases.csv)
+    mem = load_members(members_csv)
+    cal = sorted({d for f in ("SPY",) for d in pd.read_csv(os.path.join(price_dir, "SPY.csv.gz")).date})
     cov = []
     for y in range(2017, 2027):
         a, b = f"{y}-01-01", f"{y}-12-31"
         m = [k for k, iv in mem.items() if any(s0 <= b and e0 >= a for s0, e0 in iv)]
         have = [k for k in m if k in files]
+        days = [d for d in cal if a <= d <= b]
+        md = sum(1 for k in m for d in days if any(s0 <= d <= e0 for s0, e0 in mem[k]))
+        mh = sum(1 for k in have for d in days if any(s0 <= d <= e0 for s0, e0 in mem[k]))
         cov.append({"year": y, "members_during_year": len(m), "with_price_data": len(have), "missing": len(m) - len(have),
+                    "member_days_covered_pct": round(100 * mh / md, 1) if md else None,
                     "missing_pct": round(100 * (len(m) - len(have)) / len(m), 1), "missing_tickers": " ".join(sorted(set(m) - set(have)))})
     pd.DataFrame(cov).to_csv(os.path.join(out, "sp500_coverage.csv"), index=False)
     cls_counts = pd.Series([r["classification"] for r in rows]).value_counts().to_dict()
