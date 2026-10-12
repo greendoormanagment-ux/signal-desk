@@ -38,6 +38,26 @@ def load_prices(cache):
     return out
 
 
+def apply_corrections(prices, path):
+    """Apply the Gate 1 corrections overlay (audit.py) in memory. Cache files are never changed."""
+    if not path or not os.path.exists(path):
+        return prices
+    for c in json.load(open(path))["corrections"]:
+        df = prices.get(c["sym"])
+        if df is None:
+            continue
+        if c["op"] == "drop_bar":
+            df = df[df.date != c["date"]]
+        elif c["op"] == "scale_before":
+            m = df.date < c["date"]
+            df = df.copy()
+            for k in ("o", "h", "l", "c"):
+                df.loc[m, k] = df.loc[m, k] * c["price_factor"]
+            df.loc[m, "v"] = df.loc[m, "v"] * c["volume_factor"]
+        prices[c["sym"]] = df.reset_index(drop=True)
+    return prices
+
+
 def _days(a, b):
     return (dt.date.fromisoformat(b) - dt.date.fromisoformat(a)).days
 
@@ -357,11 +377,30 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
 
 
 # ───────────────────────── portfolio ─────────────────────────
-def rs_rank(prices, cal):
-    """IBD-style relative strength: weighted 3/6/9/12-month return, ranked 0-99 across the universe each day."""
+def eligibility(prices, cal, min_price=5.0, min_dollar_vol=20.0, min_history=252, member=None):
+    """Point-in-time eligibility, one row per day: a stock can be ranked on a date only if, AS OF that date,
+    it has a full year of history (IPOs wait 252 sessions), trades >= $5, averages >= $20M a day, and (when a
+    membership function is given) belongs to the index on that date. Delisted stocks that are absent from the
+    data cannot be ranked at all; that gap is documented, not hidden."""
+    cl = pd.DataFrame({s: df.set_index("date").c for s, df in prices.items()}).reindex(cal)
+    vo = pd.DataFrame({s: df.set_index("date").v for s, df in prices.items()}).reindex(cal)
+    dv = vo.rolling(50, min_periods=50).mean().shift(1) * cl / 1e6
+    hist = cl.notna().cumsum()
+    ok = (cl >= min_price) & (dv >= min_dollar_vol) & (hist >= min_history)
+    if member is not None:
+        ok &= pd.DataFrame({s: [member(s, d) for d in cal] for s in cl.columns}, index=cal)
+    return ok
+
+
+def rs_rank(prices, cal, eligible=None):
+    """IBD-style relative strength: weighted 3/6/9/12-month return, ranked 0-99 each day.
+    With `eligible` (see eligibility()), each day ranks only the stocks eligible that day (point in time);
+    ineligible stocks get no rank. Without it, ranks against every stock in the data (round 1-2 behaviour)."""
     cl = pd.DataFrame({s: df.set_index("date").c for s, df in prices.items()}).reindex(cal)
     perf = 0.4 * cl.pct_change(63, fill_method=None) + 0.2 * cl.pct_change(126, fill_method=None) \
          + 0.2 * cl.pct_change(189, fill_method=None) + 0.2 * cl.pct_change(252, fill_method=None)
+    if eligible is not None:
+        perf = perf.where(eligible.reindex(index=perf.index, columns=perf.columns).fillna(False).astype(bool))
     rk = perf.rank(axis=1, pct=True) * 99
     return {s: rk[s] for s in rk.columns}
 
