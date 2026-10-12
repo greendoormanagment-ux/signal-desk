@@ -71,6 +71,13 @@ def load_members(path):
         m.setdefault(r["ticker"].replace(".", "-"), []).append((r["start_date"], r["end_date"] or "9999"))
     if "META" in m and "FB" in m:
         m["META"] += m["FB"]
+    # Reviewed ticker renames (ticker_aliases.csv): membership under the old ticker is credited to today's ticker,
+    # whose price history covers the old period. Rejected look-alikes are documented in ticker_map.py output.
+    ap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_aliases.csv")
+    if os.path.exists(ap):
+        for r in csv.DictReader(open(ap)):
+            if r["old"] in m:
+                m.setdefault(r["new"], []).extend(m.pop(r["old"]))
     return m
 
 
