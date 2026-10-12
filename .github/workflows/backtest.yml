@@ -46,6 +46,8 @@ jobs:
         run: |
           python run_systems.py /tmp/bt-cache/prices /tmp/bt-cache/sec ../../backtest /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv
           python report_systems.py ../../backtest
+          python run_round2.py /tmp/bt-cache/prices /tmp/bt-cache/sec ../../backtest /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv
+          python report_round2.py ../../backtest
       - name: Commit results
         run: |
           git config user.name "signal-desk-bot"
