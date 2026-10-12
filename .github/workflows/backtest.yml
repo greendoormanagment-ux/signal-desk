@@ -39,10 +39,17 @@ jobs:
       - name: Write report
         working-directory: scripts/backtest
         run: python report.py ../../backtest
+      - name: Point-in-time S&P 500 members (fairer universe)
+        run: python scripts/backtest/fetch_sp500.py /tmp/bt-cache/prices /tmp/bt-cache/prices-sp /tmp/bt-cache/sec /tmp/bt-cache
+      - name: Run candidate systems
+        working-directory: scripts/backtest
+        run: |
+          python run_systems.py /tmp/bt-cache/prices /tmp/bt-cache/sec ../../backtest /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv
+          python report_systems.py ../../backtest
       - name: Commit results
         run: |
           git config user.name "signal-desk-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add backtest
+          git add backtest/*.md
           git commit -m "Backtest results $(date +%F)" || echo "nothing to commit"
           git pull --rebase && git push
