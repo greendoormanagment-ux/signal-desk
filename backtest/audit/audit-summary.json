@@ -1,0 +1,113 @@
+{
+ "files": 2075,
+ "combined_sha256": "976795cc8ef8fb1749c72ef9e3973649acbfb24b1fe34345f94bf20a3598158a",
+ "extreme_moves": 270,
+ "stocks_with_extreme_moves": 131,
+ "classification": {
+  "genuine": 239,
+  "unresolved": 31
+ },
+ "corrections": 0,
+ "stocks_with_unresolved": [
+  "ASND",
+  "AYA",
+  "BVC",
+  "DFTX",
+  "INDV",
+  "IVT",
+  "KDP",
+  "MAAS",
+  "PECO",
+  "QXO",
+  "SBNY",
+  "SKE"
+ ],
+ "stocks_with_missing_sessions": 1,
+ "total_missing_sessions": 1,
+ "stocks_with_zero_volume_days": 180,
+ "bad_rows_dropped": 0,
+ "duplicate_rows": 0,
+ "stocks_starting_after_2016": 558,
+ "sp500_coverage": [
+  {
+   "year": 2017,
+   "members_during_year": 532,
+   "with_price_data": 445,
+   "missing": 87,
+   "member_days_covered_pct": 84.9,
+   "missing_pct": 16.4
+  },
+  {
+   "year": 2018,
+   "members_during_year": 529,
+   "with_price_data": 454,
+   "missing": 75,
+   "member_days_covered_pct": 87.0,
+   "missing_pct": 14.2
+  },
+  {
+   "year": 2019,
+   "members_during_year": 528,
+   "with_price_data": 468,
+   "missing": 60,
+   "member_days_covered_pct": 89.1,
+   "missing_pct": 11.4
+  },
+  {
+   "year": 2020,
+   "members_during_year": 523,
+   "with_price_data": 472,
+   "missing": 51,
+   "member_days_covered_pct": 91.0,
+   "missing_pct": 9.8
+  },
+  {
+   "year": 2021,
+   "members_during_year": 527,
+   "with_price_data": 483,
+   "missing": 44,
+   "member_days_covered_pct": 92.5,
+   "missing_pct": 8.3
+  },
+  {
+   "year": 2022,
+   "members_during_year": 523,
+   "with_price_data": 488,
+   "missing": 35,
+   "member_days_covered_pct": 94.2,
+   "missing_pct": 6.7
+  },
+  {
+   "year": 2023,
+   "members_during_year": 518,
+   "with_price_data": 494,
+   "missing": 24,
+   "member_days_covered_pct": 95.7,
+   "missing_pct": 4.6
+  },
+  {
+   "year": 2024,
+   "members_during_year": 521,
+   "with_price_data": 501,
+   "missing": 20,
+   "member_days_covered_pct": 96.6,
+   "missing_pct": 3.8
+  },
+  {
+   "year": 2025,
+   "members_during_year": 523,
+   "with_price_data": 508,
+   "missing": 15,
+   "member_days_covered_pct": 97.9,
+   "missing_pct": 2.9
+  },
+  {
+   "year": 2026,
+   "members_during_year": 516,
+   "with_price_data": 507,
+   "missing": 9,
+   "member_days_covered_pct": 98.9,
+   "missing_pct": 1.7
+  }
+ ]
+}
