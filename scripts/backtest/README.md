@@ -28,3 +28,11 @@ The same workflow runs these. Only the `.md` reports are committed, so the repo 
 
 - `run_round2.py`: (a) a short-term pullback (mean-reversion) system: buy a 2–3 day dip in an uptrend, sell on the bounce. (b) A stress test of momentum rotation: other settings, rebalance days, market filters, results without 2026, and rolling 3-year windows vs SPY and RSP.
 - `report_round2.py`: writes `backtest/round2-latest.md`.
+
+## Round 3 (Oct 12 2026): audit first, then a realistic re-test
+
+- `tests/test_backtest.py`: 15 planted test cases with hand-worked answers. Run with `python tests/test_backtest.py`.
+- `audit.py`: data snapshot hashes, classification of every >60% daily move (split records + an independent Nasdaq price source + the next-day check), a corrections overlay (the cache is never edited), data gaps, and S&P 500 coverage by year.
+- `engine.py`: `apply_corrections`, point-in-time `eligibility`, and `rs_rank` (ranked only against stocks eligible that day).
+- `systems.py`: `momentum_open` (trades at the next open, gaps and costs included), `perf_metrics`, and `block_bootstrap_excess`.
+- `run_round3.py` + `report_round3.py`: write `backtest/round3-latest.md` with the Gate 1 and Gate 2 verdicts.
