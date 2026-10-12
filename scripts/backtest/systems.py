@@ -70,6 +70,13 @@ def features(sym, df, ind, sec, rec, mkt, meta):
                                   "hi52", "lo52", "volratio")})
     f["ema21"] = pd.Series(c).ewm(span=21, adjust=False).mean().to_numpy()
     f["ema10"] = pd.Series(c).ewm(span=10, adjust=False).mean().to_numpy()
+    f["sma5"] = pd.Series(c).rolling(5).mean().to_numpy()
+    d1 = np.diff(c, prepend=c[0])
+    up2 = pd.Series(np.maximum(d1, 0)).ewm(alpha=1 / 2, adjust=False).mean()
+    dn2 = pd.Series(np.maximum(-d1, 0)).ewm(alpha=1 / 2, adjust=False).mean()
+    f["rsi2"] = (100 - 100 / (1 + up2 / dn2.replace(0, np.nan))).fillna(100).to_numpy()   # 2-day RSI (Wilder)
+    dn = (d1 < 0).astype(int)
+    f["down_days"] = pd.Series(dn).groupby((dn == 0).cumsum()).cumsum().to_numpy()      # consecutive down closes
     f["dollar_vol"] = ind["avgv"] * c / 1e6                                # $M per day, point in time
     f["hh50"] = pd.Series(h).rolling(50).max().shift(1).to_numpy()        # highest high of the prior 50 days
     rng10 = (pd.Series(h).rolling(10).max() - pd.Series(l).rolling(10).min()) / pd.Series(c)
@@ -96,6 +103,7 @@ def features(sym, df, ind, sec, rec, mkt, meta):
     f["earn_window"] = er
     mk = mkt["live"]
     f["mkt"] = np.array([mk.get(d, "UNKNOWN") for d in dates])
+    f["spy_above200"] = np.array([mkt["spy200"].get(d) == "UPTREND" for d in dates])
     f["sector"] = (meta or {}).get("sector", "")
     return f
 
@@ -152,6 +160,22 @@ def leader_pullback(f, P):
     return [(i, stop[i], f["rsrank"][i]) for i in np.flatnonzero(sig)]
 
 
+def mean_reversion(f, P):
+    """Short-term pullback in an uptrend (Connors-style): buy a sharp 2-3 day dip in a stock above its
+    200-day, sell on the bounce. High win rate, small gains. Disaster stop only (default 10% under entry)."""
+    c = f["c"]
+    trend = c > f["sma200"]
+    dip = f["rsi2"] < P.get("rsi_max", 10)
+    if P.get("min_down_days"):
+        dip &= f["down_days"] >= P["min_down_days"]
+    liq = np.nan_to_num(f["dollar_vol"]) >= P.get("min_dollar_vol", 20)
+    mkt = (f["spy_above200"] if P.get("spy_filter") else np.ones(len(c), bool))
+    sig = trend & dip & liq & mkt
+    stop = c * (1 - P.get("disaster_stop", 0.10))
+    score = -f["rsi2"] if P.get("rank", "rsi") == "rsi" else np.nan_to_num(f["rsrank"])   # most oversold, or strongest RS, first
+    return [(i, stop[i], score[i]) for i in np.flatnonzero(sig)]
+
+
 def combined(f, P):
     """All three entry rules feeding one portfolio (raises time invested). Ranked by RS rank."""
     seen = {}
@@ -162,7 +186,7 @@ def combined(f, P):
 
 
 SYSTEMS = {"leader_breakout": leader_breakout, "earnings_gap": earnings_gap, "leader_pullback": leader_pullback,
-           "combined": combined}
+           "combined": combined, "mean_reversion": mean_reversion}
 
 
 # ───────────── trade simulation with partial exits
@@ -175,11 +199,20 @@ def simulate(sym, f, entries, X, start, end):
     for i, stop, score in entries:
         if i <= busy_until or i + 1 >= n or not (start <= dates[i] <= end):
             continue
-        e = i + 1; ep = o[e]
+        mode = X.get("entry", "open")
+        if mode == "close":                                                # market-on-close order on the signal day
+            e = i; ep = c[i]; j0 = i + 1
+        elif mode == "limit":                                              # limit order k% under the signal close, next day only
+            e = i + 1; lim = c[i] * (1 - X.get("limit_pct", 0.02))
+            if l[e] > lim:
+                continue
+            ep = min(o[e], lim); j0 = e
+        else:
+            e = i + 1; ep = o[e]; j0 = e
         if not (ep > stop > 0) or (ep - stop) / ep > X["max_risk"]:
             continue
-        R = ep - stop; stp = stop; rem = 1.0; fills = []; hi = h[e]; mfe = 0.0; took = False
-        j = e; exit_next = None
+        R = ep - stop; stp = stop; rem = 1.0; fills = []; hi = h[e] if j0 == e else ep; mfe = 0.0; took = False
+        j = j0; exit_next = None
         while j < n:
             if exit_next is not None:
                 fills.append((dates[j], rem, o[j], exit_next)); rem = 0; break
@@ -194,7 +227,15 @@ def simulate(sym, f, entries, X, start, end):
                     stp = max(stp, ep)
             hi = max(hi, h[j]); mfe = max(mfe, (hi - ep) / R)
             # end-of-day decisions (executed next open)
-            if X["time_days"] and j - e == X["time_days"] and hi < ep + X["time_R"] * R:
+            if X.get("bounce") == "sma5" and c[j] > f["sma5"][j]:
+                exit_next = "bounce: close > 5-day avg"
+            elif X.get("bounce") == "rsi70" and f["rsi2"][j] > 70:
+                exit_next = "bounce: RSI(2) > 70"
+            elif X.get("bounce") == "first_up" and j > e and c[j] > c[j - 1]:
+                exit_next = "bounce: first up close"
+            elif X.get("max_days") and j - e + 1 >= X["max_days"]:
+                exit_next = "max hold"
+            elif X["time_days"] and j - e == X["time_days"] and hi < ep + X["time_R"] * R:
                 exit_next = "time stop"
             elif X["runner"] in ("sma50", "ema21", "ema10") and c[j] < runner[j] and (took or X.get("runner_before_partial", True)):
                 exit_next = f"close < {X['runner']}"
@@ -260,38 +301,71 @@ def portfolio(trades, closes, cal, start, end, max_pos=8, sector_cap=2, risk=0.0
 
 
 # ───────────── system 4: momentum rotation (control)
-def momentum_rotation(prices, cal, start, end, top=10, spy=None, regime=False, min_dollar_vol=20, cost=0.001, member=None):
+def momentum_rotation(prices, cal, start, end, top=10, spy=None, regime=False, min_dollar_vol=20, cost=0.001, member=None,
+                      lookback=252, skip=21, offset=0, weighting="equal", regime_daily=False, trend_filter=True, sector=None,
+                      sector_cap=None, return_holdings=False):
+    """Monthly rotation into the strongest stocks.
+    lookback/skip: momentum = return from `lookback` to `skip` trading days ago (12-1 month by default)
+    offset: rebalance on the Nth trading day of each month (tests whether the day matters)
+    weighting: "equal" or "invvol" (less money in jumpier stocks)
+    regime: hold cash when SPY < its 200-day at the rebalance; regime_daily: check every day, re-enter next day"""
     cl = pd.DataFrame({s: df.set_index("date").c for s, df in prices.items()}).reindex(cal)
     vol = pd.DataFrame({s: df.set_index("date").v for s, df in prices.items()}).reindex(cal)
     dv = (vol.rolling(50).mean().shift(1) * cl) / 1e6
-    mom = cl.shift(21) / cl.shift(252) - 1                                   # 12-month return, skipping the last month
-    above = cl > cl.rolling(200).mean()
-    spy200 = (spy.set_index("date").c > spy.set_index("date").c.rolling(200).mean()).reindex(cal) if spy is not None else None
+    mom = cl.shift(skip) / cl.shift(lookback) - 1
+    above = cl > cl.rolling(200).mean() if trend_filter else cl.notna()
+    rv = cl.pct_change(fill_method=None).rolling(63).std()
+    sp = spy.set_index("date").c if spy is not None else None
+    spy200 = (sp > sp.rolling(200).mean()).reindex(cal) if sp is not None else None
     days = [d for d in cal if start <= d <= end]
     months = {}
     for d in days:
-        months.setdefault(d[:7], d)                                          # first trading day of each month
-    rebal = set(months.values())
-    val, hold, eq, held_rets = 100_000.0, {}, [], []
-    prev = None
+        months.setdefault(d[:7], []).append(d)
+    rebal = {v[min(offset, len(v) - 1)] for v in months.values()}
+    val, hold, eq, held_rets, log = 100_000.0, {}, [], [], []
+    w = {}; prev = None; out = False
     for d in days:
-        if prev is not None and hold:
-            r = np.nanmean([cl.at[d, s] / cl.at[prev, s] - 1 if not np.isnan(cl.at[d, s]) else 0 for s in hold])
+        if regime_daily and spy200 is not None and prev is not None:
+            want_out = not bool(spy200.get(prev, True))                      # decided at yesterday's close, acted on today
+            if want_out != out:
+                val *= 1 - cost; out = want_out
+        if prev is not None and hold and not out:
+            r = sum(w[s] * ((cl.at[d, s] / cl.at[prev, s] - 1) if not (np.isnan(cl.at[d, s]) or np.isnan(cl.at[prev, s])) else 0) for s in hold)
             val *= 1 + r
+            for s in hold:                                                    # drift the weights with prices
+                if not (np.isnan(cl.at[d, s]) or np.isnan(cl.at[prev, s])):
+                    w[s] *= cl.at[d, s] / cl.at[prev, s]
+            tot = sum(w.values()) or 1
+            w = {s: x / tot for s, x in w.items()}
         if d in rebal:
             if hold:
                 held_rets += [(cl.at[d, s] / hold[s] - 1) * 100 for s in hold if not np.isnan(cl.at[d, s])]
             ok = above.loc[d] & (dv.loc[d] >= min_dollar_vol) & mom.loc[d].notna()
             if member is not None:
                 ok &= pd.Series({s: member(s, d) for s in ok.index})
-            pick = list(mom.loc[d][ok].sort_values(ascending=False).index[:top])
+            ranked = list(mom.loc[d][ok].sort_values(ascending=False).index)
+            pick = []
+            for s in ranked:
+                if sector_cap and sector and sum(1 for x in pick if sector.get(x) == sector.get(s) and sector.get(s)) >= sector_cap:
+                    continue
+                pick.append(s)
+                if len(pick) >= top:
+                    break
             if regime and spy200 is not None and not spy200.get(d, True):
                 pick = []
             turnover = len(set(pick) ^ set(hold)) / max(1, 2 * top)
             val *= 1 - cost * 2 * turnover
             hold = {s: cl.at[d, s] for s in pick}
+            if weighting == "invvol" and pick:
+                iv = {s: 1 / rv.at[d, s] if rv.at[d, s] and not np.isnan(rv.at[d, s]) else 0 for s in pick}
+                tot = sum(iv.values()) or 1
+                w = {s: iv[s] / tot for s in pick}
+            else:
+                w = {s: 1 / len(pick) for s in pick}
+            log.append((d, pick))
         eq.append((d, val)); prev = d
     s = pd.Series([v for _, v in eq], index=[d for d, _ in eq])
     r = np.array(held_rets)
-    return s, {"holdings": len(r), "win_%": round((r > 0).mean() * 100, 1) if len(r) else 0,
-               "avg_hold_ret_%": round(r.mean(), 2) if len(r) else 0}
+    st = {"holdings": len(r), "win_%": round((r > 0).mean() * 100, 1) if len(r) else 0,
+          "avg_hold_ret_%": round(r.mean(), 2) if len(r) else 0}
+    return (s, st, log) if return_holdings else (s, st)
