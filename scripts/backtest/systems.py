@@ -369,3 +369,107 @@ def momentum_rotation(prices, cal, start, end, top=10, spy=None, regime=False, m
     st = {"holdings": len(r), "win_%": round((r > 0).mean() * 100, 1) if len(r) else 0,
           "avg_hold_ret_%": round(r.mean(), 2) if len(r) else 0}
     return (s, st, log) if return_holdings else (s, st)
+
+
+# ───────────── Round 3: momentum with realistic execution
+def momentum_open(prices, cal, start, end, top=10, lookback=252, skip=21, offset=0, cost=0.0007, member=None,
+                  min_dollar_vol=20, trend_filter=True, group=None, group_cap=None):
+    """Monthly momentum rotation, executed realistically:
+      * the ranking uses data up to the CLOSE of the rebalance day; trades happen at the NEXT day's OPEN
+      * stocks sold carry their overnight move (close -> open); stocks bought start at the open (gaps included)
+      * cost is charged on the fraction of the portfolio actually traded (per side: commission + slippage + half-spread)
+      * group_cap: at most N holdings per group (industry/theme, current classification)
+    Returns (daily equity, details) — details holds turnover and the monthly picks."""
+    cl = pd.DataFrame({s: df.set_index("date").c for s, df in prices.items()}).reindex(cal)
+    op = pd.DataFrame({s: df.set_index("date").o for s, df in prices.items()}).reindex(cal)
+    vol = pd.DataFrame({s: df.set_index("date").v for s, df in prices.items()}).reindex(cal)
+    dv = (vol.rolling(50, min_periods=50).mean().shift(1) * cl) / 1e6
+    mom = cl.shift(skip) / cl.shift(lookback) - 1
+    above = cl > cl.rolling(200, min_periods=200).mean() if trend_filter else cl.notna()
+    days = [d for d in cal if start <= d <= end]
+    months = {}
+    for d in days:
+        months.setdefault(d[:7], []).append(d)
+    rebal = {v[min(offset, len(v) - 1)] for v in months.values()}
+    C, O = cl.to_dict("index"), op.to_dict("index")
+    val, w, pending, eq, picks, traded_total = 100_000.0, {}, None, [], [], 0.0
+    prev = None
+    for d in days:
+        cd, od = C[d], O[d]
+        if prev is not None and w:
+            cp = C[prev]
+            if pending is not None:
+                # overnight: held stocks move from yesterday's close to today's open
+                g = {s: (od[s] / cp[s] if (od.get(s) == od.get(s) and cp.get(s) == cp.get(s) and cp[s]) else 1.0) for s in w}
+                r1 = sum(w[s] * (g[s] - 1) for s in w); val *= 1 + r1
+                w = {s: w[s] * g[s] / (1 + r1) for s in w}
+        elif prev is not None:
+            cp = C[prev]
+        if pending is not None and prev is not None:
+            traded = sum(abs(pending.get(s, 0) - w.get(s, 0)) for s in set(pending) | set(w))
+            val *= 1 - cost * traded; traded_total += traded / 2
+            w = dict(pending); pending = None
+            g = {s: (cd[s] / od[s] if (cd.get(s) == cd.get(s) and od.get(s) == od.get(s) and od[s]) else 1.0) for s in w}
+            r2 = sum(w[s] * (g[s] - 1) for s in w); val *= 1 + r2
+            w = {s: w[s] * g[s] / (1 + r2) for s in w} if (1 + r2) else w
+        elif prev is not None and w:
+            g = {s: (cd[s] / cp[s] if (cd.get(s) == cd.get(s) and cp.get(s) == cp.get(s) and cp[s]) else 1.0) for s in w}
+            r = sum(w[s] * (g[s] - 1) for s in w); val *= 1 + r
+            w = {s: w[s] * g[s] / (1 + r) for s in w}
+        if d in rebal:
+            ok = above.loc[d] & (dv.loc[d] >= min_dollar_vol) & mom.loc[d].notna()
+            if member is not None:
+                ok &= pd.Series({s: member(s, d) for s in ok.index})
+            pick = []
+            for s in mom.loc[d][ok].sort_values(ascending=False).index:
+                if group_cap and group and group.get(s) and sum(1 for x in pick if group.get(x) == group.get(s)) >= group_cap:
+                    continue
+                pick.append(s)
+                if len(pick) >= top:
+                    break
+            pending = {s: 1 / len(pick) for s in pick} if pick else {}
+            picks.append((d, pick))
+        eq.append((d, val)); prev = d
+    s = pd.Series([v for _, v in eq], index=[d for d, _ in eq])
+    yrs = max((pd.Timestamp(days[-1]) - pd.Timestamp(days[0])).days / 365.25, 1e-9)
+    return s, {"turnover_per_year": round(traded_total / yrs, 2), "picks": picks}
+
+
+def perf_metrics(eq, bench=None):
+    """CAGR, max drawdown, annualized volatility, Sharpe (no risk-free), and excess CAGR vs a benchmark."""
+    if len(eq) < 20:
+        return {}
+    yrs = (pd.Timestamp(eq.index[-1]) - pd.Timestamp(eq.index[0])).days / 365.25
+    r = eq.pct_change().dropna()
+    out = {"cagr_%": round(((eq.iloc[-1] / eq.iloc[0]) ** (1 / yrs) - 1) * 100, 1),
+           "max_dd_%": round(float((eq / eq.cummax() - 1).min()) * 100, 1),
+           "vol_%": round(float(r.std() * np.sqrt(252)) * 100, 1),
+           "sharpe": round(float(r.mean() / r.std() * np.sqrt(252)), 2) if r.std() > 0 else 0}
+    if bench is not None:
+        b = bench[(bench.index >= eq.index[0]) & (bench.index <= eq.index[-1])]
+        bc = ((b.iloc[-1] / b.iloc[0]) ** (1 / yrs) - 1) * 100
+        out["bench_cagr_%"] = round(bc, 1); out["excess_cagr_%"] = round(out["cagr_%"] - bc, 1)
+    return out
+
+
+def block_bootstrap_excess(eq, bench, start, end, block=6, n=5000, seed=1):
+    """Resample MONTHLY excess log returns (strategy minus benchmark) in blocks of `block` months
+    (keeps short-run streaks together). Returns the 5th/50th/95th percentile of the annualized excess
+    return and the share of resamples above zero. Describes uncertainty in the PAST average only —
+    it is not a probability of beating SPY in the future."""
+    m = eq[(eq.index >= start) & (eq.index <= end)].groupby(lambda x: x[:7]).last()
+    bm = bench[(bench.index >= start) & (bench.index <= end)].groupby(lambda x: x[:7]).last()
+    m, bm = m.align(bm, join="inner")
+    ex = (np.log(m / m.shift(1)) - np.log(bm / bm.shift(1))).dropna().to_numpy()
+    if len(ex) < block * 2:
+        return {}
+    rng = np.random.default_rng(seed); k = len(ex); res = []
+    for _ in range(n):
+        idx = []
+        while len(idx) < k:
+            st = rng.integers(0, k - block + 1); idx.extend(range(st, st + block))
+        res.append(ex[idx[:k]].mean() * 12)
+    res = np.array(res)
+    return {"months": k, "block_months": block, "resamples": n,
+            "excess_p5_%": round(float(np.percentile(res, 5)) * 100, 1), "excess_median_%": round(float(np.median(res)) * 100, 1),
+            "excess_p95_%": round(float(np.percentile(res, 95)) * 100, 1), "share_above_zero_%": round(float((res > 0).mean()) * 100, 0)}
