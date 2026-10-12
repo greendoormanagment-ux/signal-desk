@@ -29,6 +29,9 @@ jobs:
           path: /tmp/bt-cache
           key: bt-cache-${{ github.run_id }}
           restore-keys: bt-cache-
+      - name: Planted tests (must pass before anything else runs)
+        working-directory: scripts/backtest
+        run: python tests/test_backtest.py
       - name: Download price history (Yahoo, Nasdaq fallback)
         run: python scripts/backtest/fetch_prices.py /tmp/bt-cache/prices ${{ inputs.min_cap }}
       - name: Download SEC EPS history + earnings dates
@@ -48,10 +51,16 @@ jobs:
           python report_systems.py ../../backtest
           python run_round2.py /tmp/bt-cache/prices /tmp/bt-cache/sec ../../backtest /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv
           python report_round2.py ../../backtest
+      - name: Round 3 audit + realistic re-test
+        working-directory: scripts/backtest
+        run: |
+          SEC_DIR=/tmp/bt-cache/sec python audit.py /tmp/bt-cache/prices /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv ../../backtest/audit
+          python run_round3.py /tmp/bt-cache/prices /tmp/bt-cache/sec /tmp/bt-r3 /tmp/bt-cache/prices-sp /tmp/bt-cache/sp500/sp500_ticker_start_end.csv ../../backtest/audit
+          python report_round3.py ../../backtest/audit /tmp/bt-r3 ../../backtest/round3-latest.md "$(python tests/test_backtest.py | tail -1)"
       - name: Commit results
         run: |
           git config user.name "signal-desk-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add backtest/*.md
+          git add backtest/*.md backtest/audit
           git commit -m "Backtest results $(date +%F)" || echo "nothing to commit"
           git pull --rebase && git push
