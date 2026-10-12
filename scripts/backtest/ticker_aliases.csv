@@ -1,0 +1,30 @@
+old,new,sec_cik,evidence
+ANTM,ELV,1156039,SEC former name Anthem Inc.
+BHGE,BKR,1701605,SEC former name Baker Hughes a GE Co
+BLL,BALL,9389,same SEC CIK; ticker change only
+DWDP,DD,1666700,SEC former name DowDuPont Inc.
+EQR,VMRK,906107,SEC former name Equity Residential
+JEC,J,52988,SEC former name Jacobs Engineering Group
+MMC,MRSH,62709,SEC former name Marsh & McLennan Companies Inc
+SYMC,GEN,849399,SEC former name Symantec Corp
+NLOK,GEN,849399,SEC former name NortonLifeLock Inc.
+PKI,RVTY,31791,SEC former name PerkinElmer Inc
+SATS,ECHO,1415404,same SEC CIK (EchoStar); ticker change
+UTX,RTX,101829,SEC former name United Technologies Corp
+WLTW,WTW,1140536,same SEC CIK (Willis Towers Watson); ticker change
+FBHS,FBIN,1519751,SEC former name Fortune Brands Home & Security
+HCP,DOC,765880,SEC former name HCP Inc. (Healthpeak)
+PEAK,DOC,765880,same SEC CIK (Healthpeak); ticker change
+KORS,CPRI,1530721,SEC former name Michael Kors Holdings
+PSKY,SKYD,2041610,SEC former name Paramount Skydance Corp
+ABC,COR,1140859,SEC former name AmerisourceBergen Corp
+FLT,CPAY,1175454,SEC former name FleetCor Technologies
+RE,EG,1095073,SEC former name Everest Re Group
+GPS,GAP,39911,same SEC CIK (Gap Inc); ticker change
+FI,FISV,798354,same SEC CIK (Fiserv); ticker change
+ARNC,HWM,4281,SEC former name Arconic Inc. (price series continuous from 2016)
+CTL,LUMN,18926,SEC former name CenturyLink
+TMK,GL,320335,SEC former name Torchmark Corp
+HRS,LHX,202058,SEC former name Harris Corp
+BK,BNY,1390777,same SEC CIK (Bank of New York Mellon); ticker change
+HFC,DINO,1915657,successor holding company of HollyFrontier; price series continuous from 2016
