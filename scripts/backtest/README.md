@@ -23,3 +23,8 @@ Known limit: the universe is today's stocks, so there is survivorship bias (Fix 
 - `report_systems.py`: writes `backtest/systems-latest.md`.
 
 The same workflow runs these. Only the `.md` reports are committed, so the repo stays small.
+
+## Round 2 (Oct 12 2026)
+
+- `run_round2.py`: (a) a short-term pullback (mean-reversion) system: buy a 2–3 day dip in an uptrend, sell on the bounce. (b) A stress test of momentum rotation: other settings, rebalance days, market filters, results without 2026, and rolling 3-year windows vs SPY and RSP.
+- `report_round2.py`: writes `backtest/round2-latest.md`.
