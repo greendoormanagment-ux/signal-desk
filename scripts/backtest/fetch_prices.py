@@ -57,15 +57,34 @@ def yahoo(sym):
     return rows
 
 
+def yahoo_total_return(sym):
+    """Dividend-adjusted closes (Yahoo 'adjclose') — used only for total-return benchmarks."""
+    j = get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=10y&interval=1d&events=div,split")
+    res = j["chart"]["result"][0]
+    adj = res["indicators"]["adjclose"][0]["adjclose"]
+    out = {}
+    for t, a in zip(res.get("timestamp") or [], adj):
+        if a:
+            out[dt.datetime.utcfromtimestamp(t + res["meta"].get("gmtoffset", -14400)).date().isoformat()] = a
+    return out
+
+
 def nasdaq(sym):
     asset = "etf" if sym in INDEXES else "stocks"
     to = dt.date.today().isoformat(); fr = (dt.date.today() - dt.timedelta(days=3660)).isoformat()
     j = get(f"https://api.nasdaq.com/api/quote/{sym}/historical?assetclass={asset}&fromdate={fr}&limit=9999&todate={to}")
-    num = lambda s: float(str(s).replace("$", "").replace(",", "") or 0)
+    def num(s):
+        try:
+            return float(str(s).replace("$", "").replace(",", ""))
+        except ValueError:                                   # "N/A" on some rows
+            return float("nan")
     rows = []
     for r in j["data"]["tradesTable"]["rows"]:
         m, d, y = r["date"].split("/")
-        rows.append((f"{y}-{m}-{d}", num(r["open"]), num(r["high"]), num(r["low"]), num(r["close"]), int(num(r["volume"]))))
+        o, h, l, c, v = num(r["open"]), num(r["high"]), num(r["low"]), num(r["close"]), num(r["volume"])
+        if c == c and c > 0:
+            o = o if o == o else c; h = h if h == h else c; l = l if l == l else c
+            rows.append((f"{y}-{m}-{d}", o, h, l, c, int(v) if v == v else 0))
     return sorted(rows)
 
 
