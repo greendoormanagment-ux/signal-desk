@@ -35,9 +35,18 @@ L += ["", f"Corrections applied: **{a['corrections']}**. None of the unresolved 
       f"- Missing sessions inside a stock's own history: {a['total_missing_sessions']} (in {a['stocks_with_missing_sessions']} stock). Bad or duplicate rows: {a['bad_rows_dropped']} / {a['duplicate_rows']}.",
       f"- Stocks with at least one zero-volume day: {a['stocks_with_zero_volume_days']} (mostly thin non-S&P names; the $20M/day liquidity rule screens them out).",
       f"- Stocks whose history starts after 2016 (IPOs, spin-offs, listings): {a['stocks_starting_after_2016']}. They become eligible only after 252 sessions.", "",
-      "| Year | S&P 500 members that year | With price data | Missing (mostly bought out / delisted) |", "| --- | --- | --- | --- |"]
+      "**S&P 500 history.** The membership list records the ticker used at the time; prices are stored under today's ticker. "
+      "Renamed companies (Anthem → ELV, Ball BLL → BALL, FleetCor → CPAY, …) are now joined to today's ticker through "
+      "`scripts/backtest/ticker_aliases.csv` — 29 renames, each checked against the company's SEC record (same SEC company "
+      "number, old name listed as a former name). `ticker_map.py` proposes candidates; look-alikes it found (e.g. IPG vs IPG Photonics) "
+      "were rejected. What is still missing is almost entirely companies that were **acquired, merged away or went bankrupt**: "
+      "the free price sources delete their history, so they cannot be recovered without a dataset that keeps delisted stocks.", "",
+      "| Year | S&P 500 members that year | With price data | Missing (acquired / delisted, no free history) | Member-days covered |", "| --- | --- | --- | --- | --- |"]
 for _, c in cov.iterrows():
-    L.append(f"| {c.year} | {c.members_during_year} | {c.with_price_data} | {c.missing} ({c.missing_pct}%) |")
+    L.append(f"| {c.year} | {c.members_during_year} | {c.with_price_data} | {c.missing} ({c.missing_pct}%) | {c.member_days_covered_pct}% |")
+L += ["", "Effect on results: dropped names are mostly takeover targets, which often jumped on the deal announcement, plus a few "
+      "bankruptcies. Their absence can bias a test either way; adding the 29 renamed companies lowered momentum's return in the October 2026 run "
+      "from 9.5% to 8.3% a year (see Gate 2), so results on the earliest years (≈85% coverage in 2017) carry the most doubt."]
 L += ["", "### Point-in-time rules now enforced", "",
       "- **Universe:** a stock counts only on days it was in the S&P 500, traded at $5+, averaged $20M+/day over the prior 50 days, and had 252 sessions of history.",
       "- **RS ranking:** each day ranks only the stocks eligible that day (previously: against today's whole list).",
@@ -51,7 +60,8 @@ L += ["", "### Point-in-time rules now enforced", "",
       "### Planted tests", "", f"`python tests/test_backtest.py` → **{test_line}**. Synthetic stocks with hand-worked answers: "
       "next-open entry, stop gapped at the open, A2 breakeven and trail, 7.5% rule, partial exit maths, portfolio sizing and costs, "
       "momentum next-open execution, point-in-time EPS with a restatement, RS eligibility, and the move classifier.", "",
-      "**Gate 1 verdict:** passes for S&P 500-based tests, with the limits above documented. It does **not** pass for a broad "
+      "**Gate 1 verdict:** passes for S&P 500-based tests, with one documented limitation — 2–15% of member-days per year "
+      "(acquired/delisted companies) have no free price history. It does **not** pass for a broad "
       "growth-stock universe: delisted small and mid caps are absent, so those tests must wait for a dataset that includes them.", "",
       "## Gate 2 — momentum and pullback, realistic execution", "",
       f"Evaluation window {r['eval_window'][0]} to {r['eval_window'][1]} (2026 shown separately). Benchmark SPY: {spy.get('cagr_%')}%/yr "
@@ -80,7 +90,7 @@ for p in r["pullback"]:
              f"{p['avg_win_%']}% / {p['avg_loss_%']}% | {p['avg_days']} | {pct(e.get('cagr_%'))} ({p['mc_cagr_range'][0]} to {p['mc_cagr_range'][1]}) | "
              f"{e.get('excess_cagr_%'):+} pts | {pct(e.get('max_dd_%'))} | {pct(e.get('vol_%'))} |")
 best = max(r["pullback"], key=lambda p: p["eval"].get("cagr_%", -99))
-rd = [base["eval"]["excess_cagr_%"]] + [m["eval"]["excess_cagr_%"] for m in r["momentum"] if m["label"].startswith("rebalance on")]
+rd = [round(x, 1) + 0.0 for x in [base["eval"]["excess_cagr_%"]] + [m["eval"]["excess_cagr_%"] for m in r["momentum"] if m["label"].startswith("rebalance on")]]
 L += ["", f"Best pullback version by period ({best['label']}):", "", "| Period | Pullback | SPY | Difference | Pullback max DD |", "| --- | --- | --- | --- | --- |"]
 for b in best["blocks"]:
     L.append(f"| {b['period']} | {pct(b['cagr_%'])} | {pct(b['spy_cagr_%'])} | {b['excess_%']:+} pts | {pct(b['max_dd_%'])} |")
