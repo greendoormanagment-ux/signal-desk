@@ -14,3 +14,12 @@ To run it: Actions tab → "Backtest (run by hand)" → Run workflow (about 45 m
 To test a new idea: add one line to `VARIANTS` in `run.py`. Change one thing at a time, and judge it on the out-of-sample columns.
 
 Known limit: the universe is today's stocks, so there is survivorship bias (Fix List #69).
+
+## Candidate systems (round 1, Oct 12 2026)
+
+- `systems.py`: four candidate systems: leader breakout, earnings gap, leader pullback, and momentum rotation (the control). Exits are shared and include a partial sale at +kR, a time stop, and a runner exit.
+- `run_systems.py`: runs each system and its one-change variants on two universes. *broad* is today's stocks (biased). *sp500* counts a stock only while it was actually in the S&P 500 (fairer).
+- `fetch_sp500.py`: point-in-time S&P 500 membership (github.com/fja05680/sp500), plus prices and SEC data for past members.
+- `report_systems.py`: writes `backtest/systems-latest.md`.
+
+The same workflow runs these. Only the `.md` reports are committed, so the repo stays small.
