@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.9</title>
+<title>Signal Desk v2.10</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.9<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.10<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -268,6 +268,12 @@ input,button{font-family:inherit}
   <ul class="change-list" id="changeList"></ul>
 </div>
 
+<!-- v2.10: holding health (Position Review, info only) -->
+<div class="panel" id="healthPanel">
+  <div class="pt">HOLDING HEALTH · INFO ONLY — DOESN'T CHANGE THE VERDICT</div>
+  <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="healthText"></div>
+</div>
+
 <!-- AI explanation -->
 <div class="panel" id="explPanel">
   <div class="pt" id="explTitle">READ</div>
@@ -366,7 +372,7 @@ const show = id => { const el=$(id); if(el) el.style.display="block"; };
 const hide = id => { const el=$(id); if(el) el.style.display="none"; };
 const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
 const hideAll = () => {
-  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel"].forEach(hide);
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel"].forEach(hide);
   $("actRow").style.display="none";
 };
 
@@ -386,9 +392,57 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.9.9";
+const APP_VERSION = "v2.10";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
+// v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
+// INFO ONLY: no verdict, stop or rule reads it. Deliberately NOT the entry checklist ("extended past pivot" would fail every winner).
+const holdingHealth = (d, ix, cal, sec, entryDateStr) => {
+  if (!d?.price) return null;
+  const p = d.price, items = [], log = {};
+  const mark = ok => ok === true ? "✓" : ok === false ? "✗" : "~";
+  // 1. trend: above the 50-day and 200-day, 50-day rising
+  const trendOk = (d.sma50 && d.sma200) ? (p > d.sma50 && p > d.sma200 && !(d.sma50slope < 0)) : null;
+  items.push({ k:"Trend", ok:trendOk, t: d.sma50 ? `price ${p > d.sma50 ? "above" : "below"} 50-day $${fmt(d.sma50)}${d.sma200 ? `, ${p > d.sma200 ? "above" : "below"} 200-day $${fmt(d.sma200)}` : ""}${typeof d.sma50slope==="number" ? `, 50-day ${d.sma50slope >= 0 ? "rising" : "falling"}` : ""}` : "moving averages not available" });
+  // 2. relative strength vs the S&P (same rules-based math Entry Scan uses)
+  const rs = ix?.SPY ? rsFromBars(d.bars, ix.SPY) : null;
+  items.push({ k:"RS", ok: rs ? (rs.status==="pass" ? true : rs.status==="fail" ? false : null) : null, t: rs ? rs.detail.replace(" (rules-based)","") : "not available" });
+  // 3. market
+  const mk = (ix?.SPY?.length >= 60 && ix?.QQQ?.length >= 60) ? marketFromIndexes(ix) : null;
+  items.push({ k:"Market", ok: mk ? (mk.status==="UPTREND" ? true : mk.status==="CORRECTION" ? false : null) : null, t: mk ? mk.status : "not available" });
+  // 4. earnings growth (SEC); flags a report filed after you bought
+  const ed = parseEntryDate(entryDateStr);
+  let epsOk = null, epsT = "SEC EPS not available";
+  if (secUsable(sec)) {
+    epsOk = sec.eps > 0 && (sec.growth === null ? null : sec.growth >= 25);
+    epsT = `${sec.growth === null ? "growth n/a" : (sec.growth >= 0 ? "+" : "") + Math.round(sec.growth) + "%"} (qtr ended ${sec.qEnd})` + (ed && sec.filed && new Date(sec.filed+"T00:00:00") > ed ? " · NEW report since you bought" : "");
+  }
+  items.push({ k:"EPS", ok:epsOk, t:epsT });
+  // 5. heavy selling since entry: down 2%+ on 1.5× average volume
+  let heavy = null;
+  if (ed && Array.isArray(d.bars) && d.avgVolume) {
+    heavy = 0;
+    for (let i = 1; i < d.bars.length; i++) { const b = d.bars[i], a = d.bars[i-1];
+      if (new Date(String(b.date).slice(0,10)+"T00:00:00") >= ed && b.c <= a.c*0.98 && b.v >= d.avgVolume*1.5) heavy++; }
+  }
+  items.push({ k:"Selling", ok: heavy === null ? null : heavy <= 1, t: heavy === null ? "needs entry date" : `${heavy} heavy-volume down day${heavy===1?"":"s"} since entry` });
+  // earnings date = flag, not scored
+  let days = "";
+  if (cal?.date) days = daysUntil(cal.date);
+  const earnT = cal?.date ? (days >= 0 ? `next report ${cal.date} (${days} day${days===1?"":"s"})` : `last report ${cal.date}`) : "not on the earnings calendar";
+  const scored = items.filter(x => x.ok !== null), good = scored.filter(x => x.ok).length;
+  const score = scored.length ? `${good}/${scored.length}` : "";
+  const html = `<b>${score ? `${good} of ${scored.length} buy reasons still intact` : "Not enough data"}</b>`
+    + items.map(x => `<br>${mark(x.ok)} <b>${x.k}:</b> ${x.t}`).join("")
+    + `<br>📅 <b>Earnings:</b> ${earnT}${days !== "" && days >= 0 && days <= 14 ? " — you'd be holding through the report" : ""}`
+    + `<br><span style="opacity:.7">Logged for the day-30 review. Follow the verdict above — note any disagreement in your own "My Call" / "Why" columns.</span>`;
+  log.healthScore = score;
+  log.healthDetail = items.map(x => `${mark(x.ok)} ${x.k}: ${x.t}`).join(" | ") + ` | Earnings: ${earnT}`;
+  if (days !== "" && days >= 0) log.daysToEarnings = days;
+  if (secUsable(sec) && sec.growth !== null) log.epsGrowth = Math.round(sec.growth*10)/10;
+  if (rs) log.rsScore = rs.score;
+  return { html, log, market: mk?.status || "" };
+};
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
 const scanResearch = (d, rule, ai) => {
   const r1 = x => (x===null||x===undefined||!isFinite(x)) ? "" : Math.round(x*10)/10;
@@ -627,7 +681,7 @@ const sendToSheet = (h) => {
     "Checks":R.checks, "Pivot":R.pivotLvl, "App Stop":R.appStop, "Risk/Share":R.riskPer,
     "SPY vs 50D %":R.spy50, "QQQ vs 50D %":R.qqq50, "SPY Dist Days":R.spyDD, "QQQ Dist Days":R.qqqDD,
     "Base Depth %":R.baseDepth, "Base Days":R.baseDays, "50D Slope %":R.sma50slope, "5D Vol Ratio":R.vol5, "Avg $Vol (M)":R.dollarVol, "RSP vs 50D %":R.rsp50,
-    "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo, "ATR %":R.atrPct, "Rule Summary":R.why });
+    "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo, "ATR %":R.atrPct, "Rule Summary":R.why, "Health Score":R.healthScore, "Health Detail":R.healthDetail });
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
@@ -743,7 +797,7 @@ const fetchLiveData = async (sym) => {
       volumePartial: marketOpen,
       datetime:  qRes.datetime || new Date().toDateString(),
       ...ind,
-      bars:      bars.map(x=>({date:x.date,h:x.h,c:x.c})),
+      bars:      bars.map(x=>({date:x.date,h:x.h,c:x.c,v:x.v})), // v2.10: volume kept for holding-health heavy-selling count
       source:    "Twelve Data",
       freshness: "real-time",
     };
@@ -1233,9 +1287,10 @@ $("goBtn").onclick = async () => {
   try {
     // 1. fetch live data
     window.__tdErr = null;
-    const secP = mode==="entry" ? fetchSecEps(sym) : Promise.resolve(null);
-    const idxP = mode==="entry" ? fetchIndexBars().catch(()=>null) : Promise.resolve(null);
-    const calP = mode==="entry" ? fetchEarningsCal(sym) : Promise.resolve(null);
+    // v2.10: Position Review also reads SEC EPS, the earnings calendar (free files) and SPY/QQQ bars (cached once a day) for HOLDING HEALTH
+    const secP = fetchSecEps(sym);
+    const idxP = fetchIndexBars().catch(()=>null);
+    const calP = fetchEarningsCal(sym);
     const d = await fetchLiveData(sym);
     // No price data (usually a mistyped ticker): stop here — no rating, and no Claude cost
     if (!d && store.get("sd2-tkey")) {
@@ -1278,6 +1333,8 @@ $("goBtn").onclick = async () => {
 
     // 5. render everything
     render(sym, d, finalRule, ai, mode);
+    const health = mode==="position" ? holdingHealth(d, await idxP, await calP, sec, $("ed").value) : null;
+    if (health) { $("healthText").innerHTML = health.html; show("healthPanel"); }
 
     // 6. log
     const entry = {
@@ -1288,13 +1345,13 @@ $("goBtn").onclick = async () => {
       score: finalRule.score,
       price: d?d.price.toFixed(2):"n/a",
       setup: finalRule.setupType||"",
-      market: ai?.marketStatus||"",
+      market: ai?.marketStatus || health?.market || "",
       entryPrice: $("ep").value||"",
       userStop: mode==="position" ? ($("cs").value||"") : "",
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
       batch: !!window.__batchRun,
-      research: scanResearch(d, finalRule, ai),
+      research: Object.assign(scanResearch(d, finalRule, ai), health ? health.log : {}),
       id: Date.now() + "-" + sym,
       blocked: (finalRule.rating==="CHECK_FIRST") ? "UNVERIFIED — " + (finalRule.unverified||[]).join(" · ") : (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
     };
