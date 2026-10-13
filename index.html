@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.9.8</title>
+<title>Signal Desk v2.9.9</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.9.8<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.9.9<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -386,7 +386,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.9.8";
+const APP_VERSION = "v2.9.9";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.6: expanded logging — research fields captured at scan time (logging only; no rule uses them)
@@ -436,6 +436,17 @@ const scanResearch = (d, rule, ai) => {
   const NAMES = { entry:"Entry", fundamentals:"EPS", rs:"RS", market:"Market", earnings:"Earnings", trend:"Trend", volume:"Volume", momentum:"RSI" };
   const parts = Object.keys(NAMES).map(k => { const c = rule?.checks?.[k]; return (c && c.status && c.detail) ? `${sym1(c.status)} ${NAMES[k]}: ${cut(c.detail)}` : ""; }).filter(Boolean);
   if (out.appStop !== "" && out.riskPer !== "" && p) parts.push(`Stop $${out.appStop} (${r1(out.riskPer/p*100)}% risk)`);
+  // v2.9.9: Position Review has no entry checklist — summarize the hold/sell decision and the stop plan instead
+  if (!parts.length && rule?.status && typeof rule.gainPct === "number") {
+    const usd = x => (typeof x==="number" && isFinite(x)) ? "$"+(Math.round(x*100)/100) : "";
+    parts.push(`${rule.status}: ${rule.gainPct>=0?"+":""}${r1(rule.gainPct)}% vs buy`);
+    if (rule.sellReason) parts.push(cut(rule.sellReason));
+    if (rule.trendNote) parts.push(cut(rule.trendNote));
+    if (p && d?.sma50) parts.push(`${out.pct50>=0?"+":""}${out.pct50}% vs 50-day ${usd(d.sma50)}`);
+    if (p && d?.sma200) parts.push(`${out.pct200>=0?"+":""}${out.pct200}% vs 200-day`);
+    const stepTxt = rule.stopStep===3 ? "trailing stop" : rule.stopStep===2 ? "breakeven stop (+1R reached)" : "original stop";
+    if (rule.appStop) parts.push(`Stop ${usd(rule.appStop)} = ${stepTxt}` + (rule.stopStep===1 && rule.lvl1 ? ` · raise to breakeven at ${usd(rule.lvl1)}` : rule.stopStep===2 && rule.lvl2 ? ` · trail starts at ${usd(rule.lvl2)}` : ""));
+  }
   out.why = parts.join(" | ");
   return out;
 };
