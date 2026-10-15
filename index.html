@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.10.1</title>
+<title>Signal Desk v2.10.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.10.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.10.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -392,7 +392,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.10.1";
+const APP_VERSION = "v2.10.2";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -1318,7 +1318,7 @@ $("goBtn").onclick = async () => {
       try { ai = await claudeExplain(sym, d, ruleResult, mode, $("ep").value, $("ed").value); }
       catch(err) {
         const m = /credit balance/i.test(err.message) ? "no Anthropic credit left" : "AI unavailable";
-        ai = { aiSkipped:true, reason:m };
+        ai = { aiSkipped:true, reason:m, aiFailed:true };
         $("errbox").textContent = "AI check failed ("+err.message.slice(0,140)+"). Showing the price-rule result only."; show("errbox");
       }
     }
@@ -1682,7 +1682,7 @@ const render = (sym, d, rule, ai, mode) => {
     else if (failed.length) why="Blocked by: "+failed.join(" · ");
     else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
   }
-  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (ai.secSkip ? "AI research skipped to save cost — the price setup is good, but official SEC earnings fail the 25% EPS rule. SEC numbers include one-time items, so tap RUN AI CHECK if you want Claude to look for adjusted earnings." : rule.aiBlock ? "" : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : "";
+  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (ai.secSkip ? "AI research skipped to save cost — the price setup is good, but official SEC earnings fail the 25% EPS rule. SEC numbers include one-time items, so tap RUN AI CHECK if you want Claude to look for adjusted earnings." : rule.aiBlock ? "" : ai.aiFailed ? `AI check failed (${ai.reason}) — this rating comes from the price and data rules only. If the error says "invalid x-api-key", re-enter your Anthropic key in the setup bar, then tap RUN AI CHECK for Claude's written review.` : /watchlist/.test(ai.reason||"") ? "Watchlist scan — rules only, no AI cost. Scan this ticker on its own (or tap RUN AI CHECK) for Claude's written review." : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : ""; // v2.10.2: honest message when AI failed or was skipped by the watchlist
   $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || skipNote);
   $("aiForceBtn").style.display = ai?.aiSkipped ? "inline-block" : "none";
   $("explText").style.whiteSpace = "pre-line";
