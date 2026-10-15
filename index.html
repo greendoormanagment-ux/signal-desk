@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.10</title>
+<title>Signal Desk v2.10.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.10<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.10.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -392,7 +392,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.10";
+const APP_VERSION = "v2.10.1";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -1346,7 +1346,7 @@ $("goBtn").onclick = async () => {
       price: d?d.price.toFixed(2):"n/a",
       setup: finalRule.setupType||"",
       market: ai?.marketStatus || health?.market || "",
-      entryPrice: $("ep").value||"",
+      entryPrice: mode==="position" ? ($("ep").value||"") : "", // v2.10.1 FIX: the hidden Position box kept its last value and leaked into Entry Scan rows
       userStop: mode==="position" ? ($("cs").value||"") : "",
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
