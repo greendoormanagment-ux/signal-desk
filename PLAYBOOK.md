@@ -1,7 +1,7 @@
 # Signal Desk Playbook
 
 _The one page Claude reads before analyzing any stock or position for Tony. Rules decide; evidence ranks; lessons accumulate._
-_Last updated: Oct 21, 2026 · app v2.11 · 30-day live test 9/29 → 10/29 (rules frozen)_
+_Last updated: Oct 20, 2026 · app v2.12 · 30-day live test 9/29 → 10/29 (rules frozen)_
 
 ## 1. How to analyze a stock (every time, in this order)
 1. **Market regime first.** SPY/QQQ vs 50-day + distribution days (app's gate: UPTREND / PRESSURE / CORRECTION). Also note: S&P vs its 200-day; failed index breakout (closed back under a high it just broke); leaders vs average stock (SPY vs RSP). PRESSURE or worse → new buys are **paper only**.
@@ -10,10 +10,12 @@ _Last updated: Oct 21, 2026 · app v2.11 · 30-day live test 9/29 → 10/29 (rul
 4. **Setup.** Breakout (close above pivot on ≥ 1.4× volume, ≤ 5% extended) is the strongest-evidence entry. Pullback-to-50-day is the weakest — apply the §5 lessons. Before 4 PM ET volume is partial → treat as WATCH; rescan after the close (24-hour rule).
 5. **Risk.** 1% of account per trade; stop ≤ 8% below entry, placed on fill, never lowered. Stop rule A2: original stop until +1R → breakeven → at +2R trail = max(breakeven, high since entry − 3×ATR).
 6. **Crowding.** Same sector AND same theme (e.g. AI infrastructure spans Technology + Industrials + Utilities). Flag 3+ positions in one theme.
-7. **Lessons check.** Compare with §5 — does this look like a past mistake?
-8. **Straight take.** Buy real / buy paper / watch / pass — with the one or two reasons that matter most. No financial-advisor disclaimers (Tony decides).
+7. **Lessons check.** Compare with §5 and the mistake tally (§12) — does this look like a past mistake? Check the calendar (§10) and, for holdings, the sell (§7) and earnings (§8) playbooks.
+8. **Straight take.** Buy real / buy paper / watch / pass / hold / trim / sell — with the one or two reasons that matter most. No financial-advisor disclaimers (Tony decides).
+9. **Log the call** in the scorecard (§13) with a confidence level, so it can be graded later.
 
 ## 2. Evidence ranking of technical signals (academic + practitioner)
+
 | Strength | Signal | Where it lives |
 |---|---|---|
 | Strong | Trend following / market regime (cuts drawdowns) | Market gate; v3 Layer 1 |
@@ -68,12 +70,98 @@ Distilled from O'Neil, Minervini, Darvas, Livermore, Weinstein, Lynch, Druckenmi
 
 **Where they disagree — and Signal Desk's choice:** concentration (Druckenmiller, Minervini concentrate in their best ideas) vs diversification (Turtles). Signal Desk uses 1% risk per trade with ≤ 8 positions — closer to the disciplined middle. Re-test concentration only after the system proves an edge.
 
-## 7. Open questions for the 10/29 review
+## 7. Sell playbook (for holdings — guidance now; candidates for the November backtest)
+The hard rules stay: stop ≤ 8% below entry, never lowered; stop rule A2; SCALE_OUT at +20%. On top of those, watch for these warning signs (O'Neil, Minervini, Weinstein):
+
+| Signal | What it looks like | Take |
+|---|---|---|
+| **Failed breakout** | Closes back below the pivot within a few days of breaking out, especially on volume | Biggest early warning. Cut or tighten to just under the breakout-day low |
+| **Heavy-volume break of the 50-day** | First close below the 50-day on above-average volume after a run | Sell at least half; leaders often bounce off the 50-day, they rarely slice through it on volume |
+| **Climax run** | Late in a long move: the biggest weekly gain of the run, several up days in a row, a gap up on huge volume | Take profit into strength — climax tops are where leaders peak |
+| **Worst day of the move** | Largest one-day % drop since the breakout, on the heaviest volume | Treat as distribution; tighten stop or trim |
+| **Distribution cluster** | 3+ down days on rising volume within ~2 weeks; footprints read flips to DISTRIBUTION | Tighten stop; no adding |
+| **Stage change** (Weinstein) | 30-week (≈150-day) line flattens and price drops under it | Stage 3/4 — exit what's left |
+| **Market turns** | Gate goes UPTREND → PRESSURE → CORRECTION | Tighten stops; no new real buys (v3 Layer 4) |
+
+Process: decide the sell rule **before** the trade, write it in the Trades notes, and grade "did I follow it?" separately from "did it make money?"
+
+## 8. Earnings playbook
+Earnings are the biggest single-day risk for a holding. Gaps can jump straight past the stop.
+
+**Before the report (holding):**
+
+- Find the **expected move**: the options market's at-the-money straddle ÷ price (Barchart / broker "implied move"). Also look at the last 4 reports' moves.
+- **Cushion test:** if the gain since entry > the expected move → OK to hold the full position. If the cushion is smaller → trim to half (or less) before the report. If the position is at a loss → don't hold a full position through it.
+- Never add in the 14 days before a report (frozen rule).
+
+**After the report:**
+
+- **Gap up on heavy volume (≥ 2× normal) that holds the gap-day low** for 1–3 days = post-earnings drift setup, one of the better-documented edges (Bernard & Thomas 1989). Can add/buy on a hold of that low; stop under it.
+- **Gap down through the stop** = sell at the open. No "waiting for a bounce."
+- **Gap down but stop holds** = re-run Position Review after the close; a close below the 50-day on volume → sell (§7).
+- Guidance matters more than the quarter: a beat with a guidance cut often fails.
+
+Upcoming: KNSA 10/27, FCX 10/27 (FOMC 10/27–28 — same days, double event risk).
+
+## 9. Setup library (exact definitions)
+Pivot = the price the stock must close above to start a move (usually the top of the base/handle, + a few cents). Volume on the breakout ≥ 1.4× (frozen rule; O'Neil prefers ≥ 1.5×).
+
+| Setup | Definition (O'Neil / Minervini) | Notes |
+|---|---|---|
+| **Cup with handle** | 7–65 weeks; cup 12–33% deep (up to ~50% in bad markets); handle in the upper half, drifts down ≤ 8–12% on light volume; pivot = handle high | The classic; a handle in the lower half or a "V" with no rest is weaker |
+| **Flat base** | ≥ 5 weeks, ≤ 15% deep, usually after a prior breakout | Often a 2nd-stage base — good |
+| **Volatility contraction (VCP)** | 2–4 pullbacks, each shallower (e.g. 25% → 12% → 6%), volume drying up on the last one; pivot = top of the last contraction | Footprints "volume dry-up" < 75% fits this |
+| **High tight flag** | Up 100%+ in 4–8 weeks, then a 10–25% pullback over 3–5 weeks | Rare, powerful, volatile — size small |
+| **Pullback to 50-day** | Orderly decline to the 50-day on lighter volume in an uptrend | Weakest evidence (§2, §5). Not after a −4% day / −10% week; not > 15–20% off the high |
+
+**Base count:** count bases since the stock's last major low. **1st–2nd stage bases work best; 3rd–4th stage bases fail far more often** (the move is late, everyone owns it). A deep correction (> ~50%) resets the count. Note the base count on every BUY.
+Extended = > 5% past the pivot → don't chase (frozen rule).
+
+## 10. Market calendar check
+Before a new real buy, check: **FOMC** decision days, **CPI**, the **jobs report** (usually the first Friday), and the stock's own earnings. These days bring large index moves; a breakout the day before can be undone the next morning. Not a rule — a "wait one day" nudge.
+2026: FOMC Oct 27–28, Dec 8–9 (verify on federalreserve.gov). CPI and jobs dates: bls.gov release calendar.
+
+## 11. Reading the institutional footprints panel (v2.12, info only)
+
+| Signal | Evidence | How to read |
+|---|---|---|
+| Insider open-market **buys**, especially 2+ insiders ("cluster") | **Strong** — Lakonishok & Lee 2001; Cohen, Malloy & Pomorski 2012 | Real conviction: insiders sell for many reasons, buy for one. Sales are weak signals (often planned/routine) |
+| **Estimate revisions** (rising analyst EPS estimates) | **Strong** — Chan, Jegadeesh & Lakonishok 1996 | Rising + price strength = good. Ignore anything flagged "suspect" (data change) |
+| **Short interest** (days to cover ≥ 8) | **Moderate** — Asquith, Pathak & Ritter 2005 (high short interest predicts weak returns) | Pros betting against it. Also squeeze fuel — but don't buy *because* of a squeeze |
+| **Up/down volume, accumulation/distribution days, pocket pivot, closing strength, dry-up** | **Practitioner** (O'Neil, Morales & Kacher) — little academic testing | Useful context; confirm a breakout, warn on a holding. Being tested in the day-30 review and November |
+
+Overall read: ACCUMULATION / leaning / neutral / leaning distribution / DISTRIBUTION. Biggest weight: a DISTRIBUTION read on a holding = tighten stop (§7).
+
+## 12. Mistake tally (tag every lesson in §5; fix the costliest first)
+
+| Tag | Count | Examples |
+|---|---|---|
+| Deep or sharp "pullback" bought (really a correction / selling) | 3 | MRVL 10/15 (−26% from high), DDOG & PLTR 10/16 (−7% days) |
+| Theme crowding | 1 | MRVL + PWR 10/17 (AI capex) |
+| Buying into a weak / rotating market | 1 | 10/17 leader rotation |
+| Earnings timing | 1 | PWR 10/15 |
+| Missing / lagging data | 2 | CVE foreign filer 10/15; KNSA SEC lag 10/20 |
+| Logging bug | 1 | Entry Price leak (v2.10.1) |
+| Chased extended | 0 | — |
+
+At each review: add the money result per tag (from Trades/Outcomes) — the tag that cost the most gets the next fix.
+
+## 13. Scorecard — Claude's calls (graded at each review)
+Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = strong). Grade at 5 / 10 / 20 trading days vs SPY; "right" = the stock beat SPY for buy/hold calls, lagged it for pass/sell/trim calls. Goal: calls marked 70%+ should be right ~70%+ of the time. If not, I'm overconfident.
+
+| Date | Ticker | Call | Conf. | Price | Why (short) | 5d | 10d | 20d |
+|---|---|---|---|---|---|---|---|---|
+| 10/20 | KNSA | Hold into 10/27 earnings, stop unchanged | 60% | $83.02 | RS +37, ACCUMULATION footprints, pocket pivot 10/19; Q2 EPS +30%, revenue +55% | | | |
+
+## 14. Open questions for the 10/29 review
 - Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
 - Did Holding Health scores ≤ 3/5 come before losses?
 - Did BUYs beat DON'T BUYs on 5/10/20-day returns vs SPY (Outcomes tab)?
 - Breakout vs pullback results; UPTREND vs PRESSURE results.
+- Did ACCUMULATION vs DISTRIBUTION footprint reads predict 5/10-day returns?
+- When Claude's market read disagreed with the rules gate (e.g. 10/20: Claude UPTREND, rules PRESSURE), who was right?
+- Scorecard (§13): hit rate by confidence level.
 
-## 8. Where things are
+## 15. Where things are
 App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
 _This file is public — never put account values, keys, or personal details here._
