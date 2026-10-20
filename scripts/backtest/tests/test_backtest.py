@@ -135,4 +135,51 @@ df = pd.DataFrame({"date": ["2021-01-04", "2021-01-05", "2021-01-06", "2021-01-0
 cls, _ = A.classify(df, 2, [], {"2021-01-05": 10.0, "2021-01-06": 20.1, "2021-01-07": 21.0})
 check("classifier: genuine (second source agrees)", cls == "genuine", cls)
 
+# ── 8. Round 4 sell signals (engine.simulate_trades). Buy = day 1 open 100, stop 90 (R = 10).
+def ind4(n, s50=50.0, avgv=1e6):
+    return {"sma50": np.full(n, s50), "sma200": np.full(n, 50.0), "atr": np.full(n, 2.0), "avgv": np.full(n, avgv)}
+P4 = dict(E.BASE, exit_failbo=True)
+o = [99, 100, 99, 97, 96]; h = [99, 101, 100, 98, 97]; l = [98, 99, 97, 96, 95]; c = [99, 100, 97.5, 97, 96]
+t = E.simulate_trades("R1", bars(o, h, l, c), ind4(5), sig(5), P4, "2000-01-01", "2100-01-01")
+# day 2 closes 97.5 < 98 (2% under the buy) within 20 sessions → sold at day 3 open (97)
+check("R4 failed breakout sells next open", t[0]["exit"] == 97 and t[0]["why"] == "failed breakout", t)
+
+P4 = dict(E.BASE, exit_ma50vol=True)
+o = [99, 100, 101, 99, 94, 93]; h = [99, 101, 102, 100, 95, 94]; l = [98, 99, 100, 94.5, 93.5, 92]; c = [99, 100, 101, 95, 94, 93]
+v = [1e6, 1e6, 1e6, 3e6, 1e6, 1e6]
+t = E.simulate_trades("R2", bars(o, h, l, c, v), ind4(6, s50=96.0), sig(6), P4, "2000-01-01", "2100-01-01")
+# day 3 closes 95 < 50-day 96 (day 2 was above) on 3× volume → sold at day 4 open (94). The 7.5% rule (92.5) never fires.
+check("R4 50-day break on volume", t[0]["exit"] == 94 and t[0]["why"] == "50-day break on volume", t)
+v2 = [1e6] * 6
+t = E.simulate_trades("R2b", bars(o, h, l, c, v2), ind4(6, s50=96.0), sig(6), P4, "2000-01-01", "2100-01-01")
+check("R4 50-day break on LIGHT volume does not sell", t[0]["why"] != "50-day break on volume", t)
+
+P4 = dict(E.BASE, exit_climax=True, stop="fixed")
+c = [99, 100, 102, 104, 106, 108, 110, 114, 120, 126, 127, 128]
+o = [99, 100] + c[1:-1]; h = [x + 0.5 for x in c]; l = [x - 0.5 for x in c]; l[1] = 99
+t = E.simulate_trades("R3", bars(o, h, l, c), ind4(12), sig(12), P4, "2000-01-01", "2100-01-01")
+# day 9 closes 126 (+26% from 100); 5-day gain 126/108 = +16.7% = fastest week so far → sold at day 10 open (126)
+check("R4 climax run takes profit", t[0]["why"] == "climax run" and t[0]["exit"] == 126, t)
+
+P4 = dict(E.BASE, hold8w=True, stop="ma50")
+n = 50
+c = [99, 100, 110, 121] + [118 - 0.5 * k for k in range(n - 4)]
+o = [99, 100] + c[1:-1]; h = [x + 0.5 for x in c]; l = [x - 0.5 for x in c]; l[1] = 99
+ind = ind4(n); ind["sma50"] = np.array([95.0] * 4 + [119.0] * (n - 4))   # 50-day jumps above price after the run-up
+t = E.simulate_trades("R4", bars(o, h, l, c), ind, sig(n), P4, "2000-01-01", "2100-01-01")
+# +20% reached on day 3 (high 121.5) → 8-week hold: the "below 50-day" sell is ignored until 40 sessions after the buy
+check("R4 8-week hold ignores the 50-day sell", t[0]["days"] >= 40 or t[0]["why"].startswith("stop"), t)
+t2 = E.simulate_trades("R4b", bars(o, h, l, c), ind, sig(n), dict(E.BASE, stop="ma50"), "2000-01-01", "2100-01-01")
+check("R4 without the hold the 50-day sell fires early", t2[0]["why"] == "below 50-day" and t2[0]["days"] < 10, t2)
+
+# ── 9. Regime sizing: half risk = half the shares; zero risk = no trade
+tr = [{"sym": "X", "signal": "2020-01-01", "entry_date": "2020-01-02", "entry": 100.0, "stop": 90.0, "exit_date": "2020-01-06",
+       "exit": 120.0, "score": 1}]
+cal = dates(5)
+eq, tk = E.portfolio(tr, {"X": {d: 110.0 for d in cal}}, cal, cal[0], cal[-1], risk=0.01, cost=0.0, risk_fn=lambda d: 0.5)
+# 0.5% of $100k / $10 = 50 shares → +$20 × 50 = +$1,000
+check("R4 regime half size", abs(eq.iloc[-1] - 101_000.0) < 1e-6 and len(tk) == 1, eq.iloc[-1])
+eq, tk = E.portfolio(tr, {"X": {d: 110.0 for d in cal}}, cal, cal[0], cal[-1], risk=0.01, cost=0.0, risk_fn=lambda d: 0.0)
+check("R4 regime defense = no new buys", abs(eq.iloc[-1] - 100_000.0) < 1e-6 and len(tk) == 0, eq.iloc[-1])
+
 print(f"all {len(PASS)} planted tests passed")
