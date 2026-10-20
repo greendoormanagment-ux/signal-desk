@@ -22,7 +22,10 @@ W = dict(market=20, trend=15, entry=20, momentum=10, volume=10, rs=10, fundament
 BASE = dict(name="base (live rules v2.9.7)", vol_need=1.4, pb_lo=-3.0, pb_hi=3.0, pb_need_rising=False,
             pb_need_low_vol=False, block_pressure=False, need_rs=False, eps_min=25.0, rev_min=None,
             earn_days=14, stop="A2", atr_mult=3.0, stage4_exit=True, breakout_only=False, pullback_only=False,
-            max_ext=5.0, min_rsrank=None, trend_template=False, mkt_mode="live")
+            max_ext=5.0, min_rsrank=None, trend_template=False, mkt_mode="live",
+            # Round 4 (v2.13 sell signals, v3 leadership gates). All OFF by default so rounds 1-3 reproduce exactly.
+            near_high=None, nosec_pass=False,
+            exit_ma50vol=False, exit_climax=False, exit_failbo=False, hold8w=False)
 
 
 # ───────────────────────── data ─────────────────────────
@@ -291,6 +294,10 @@ def evaluate(sym, df, ind, sec, mkt, spy_close, P):
     rating[t_fail] = "DONT_BUY"
     rating[m_fail] = "DONT_BUY"
     unv = (f_stat == "neutral") | (e_stat == "neutral")
+    if P["nosec_pass"] and not (sec and sec.get("eps")):
+        unv = np.zeros(n, bool)          # Round 4: a stock with NO SEC file at all (often a delisted company) is judged on price
+                                         # rules alone instead of being parked as CHECK_FIRST — otherwise delisted names could never
+                                         # be bought and survivorship bias would sneak back in through the fundamentals rule
     rating[(rating == "BUY") & unv] = "CHECK_FIRST"
     if P["need_rs"]:
         rating[(rating == "BUY") & (rs != "pass")] = "DONT_BUY"
@@ -300,6 +307,8 @@ def evaluate(sym, df, ind, sec, mkt, spy_close, P):
         tt = (c > ind["sma150"]) & (c > s200) & (s50 > ind["sma150"]) & (ind["sma150"] > s200) & (s200 > ind["sma200_20"]) \
              & (c >= ind["lo52"] * 1.3) & (c >= ind["hi52"] * 0.75)
         rating[(rating == "BUY") & ~tt] = "DONT_BUY"
+    if P["near_high"] is not None:                                   # v3 leadership: within X% of the 52-week high
+        rating[(rating == "BUY") & ~(c >= ind["hi52"] * (1 - P["near_high"] / 100))] = "DONT_BUY"
     rating[(rating == "WATCH") & ((f_stat == "fail") | (e_stat == "fail") | (m == "CORRECTION"))] = "DONT_BUY"
     rating[(c < s200) & (s50 < s200)] = "SELL"
     rating[~ok] = "NA"
@@ -324,8 +333,9 @@ def evaluate(sym, df, ind, sec, mkt, spy_close, P):
 
 # ───────────────────────── trades ─────────────────────────
 def simulate_trades(sym, df, ind, sig, P, start, end):
-    o, h, l, c = (df[k].to_numpy(float) for k in ("o", "h", "l", "c"))
+    o, h, l, c, v = (df[k].to_numpy(float) for k in ("o", "h", "l", "c", "v"))
     dates = df.date.to_numpy(); s50, s200, atr = ind["sma50"], ind["sma200"], ind["atr"]
+    avgv = ind.get("avgv", np.full(len(df), np.nan))
     rating, stop0, setup = sig.rating.to_numpy(), sig.stop.to_numpy(), sig.setup.to_numpy()
     score = sig.score.to_numpy()
     trades, i, n = [], 0, len(df)
@@ -336,13 +346,17 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
         if not (ep > orig > 0):
             i += 1; continue
         R = ep - orig; stp = orig; hi = h[e_i]; mae = mfe = 0.0
+        held8 = False; best5 = -1e9                       # Round 4: O'Neil 8-week hold flag · best 5-day gain so far
         x_i, xp, why = None, None, None
         j = e_i
         while j < n:
             if j > e_i:
                 # stop for today was set after yesterday's close
                 lv1, lv2 = ep + R, ep + 2 * R
-                if P["stop"] == "A2":
+                hold_on = held8 and (j - e_i) < 40               # 8-week hold: only the breakeven stop until 40 sessions
+                if hold_on:
+                    new = max(orig, ep)
+                elif P["stop"] == "A2":
                     new = max(ep, hi - P["atr_mult"] * atr[j - 1]) if hi >= lv2 else (max(orig, ep) if hi >= lv1 else orig)
                 elif P["stop"] == "chand":
                     new = max(orig, hi - P["atr_mult"] * atr[j - 1])
@@ -363,8 +377,24 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
                     x_i, xp, why = j + 1, o[j + 1], "7.5% loss rule"; break
                 if P["stage4_exit"] and c[j] < s200[j] and s50[j] < s200[j]:
                     x_i, xp, why = j + 1, o[j + 1], "stage 4"; break
-                if P["stop"] == "ma50" and c[j] < s50[j] * 0.98:
+                if P["hold8w"] and not held8 and (j - e_i) < 15 and hi >= ep * 1.20:
+                    held8 = True                                 # +20% within 3 weeks of buying → hold 8 weeks
+                hold_on = held8 and (j - e_i) < 40
+                if P["stop"] == "ma50" and not hold_on and c[j] < s50[j] * 0.98:
                     x_i, xp, why = j + 1, o[j + 1], "below 50-day"; break
+                # Round 4 sell signals (Playbook §7 / app v2.13), each judged at the close and sold at the next open
+                if P["exit_failbo"] and (j - e_i) < 20 and c[j] < ep * 0.98:
+                    x_i, xp, why = j + 1, o[j + 1], "failed breakout"; break
+                if P["exit_ma50vol"] and not hold_on and j >= 1 and c[j] < s50[j] and c[j - 1] >= s50[j - 1] and v[j] > avgv[j]:
+                    x_i, xp, why = j + 1, o[j + 1], "50-day break on volume"; break
+                if P["exit_climax"] and not hold_on and j - 5 >= e_i:
+                    g5 = c[j] / c[j - 5] - 1
+                    fastest = g5 >= 0.12 and g5 > best5
+                    best5 = max(best5, g5)
+                    ups = sum(1 for k in range(j - 8, j + 1) if c[k] > c[k - 1]) if j - 9 >= 0 else 0
+                    far = s200[j] == s200[j] and c[j] >= s200[j] * 1.7
+                    if c[j] >= ep * 1.25 and (fastest or ups >= 7 or far):
+                        x_i, xp, why = j + 1, o[j + 1], "climax run"; break
             j += 1
         if x_i is None:
             x_i, xp, why = n - 1, c[n - 1], "open at end"
@@ -405,7 +435,7 @@ def rs_rank(prices, cal, eligible=None):
     return {s: rk[s] for s in rk.columns}
 
 
-def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_pos=10, max_w=0.20, cost=0.001, seed=None):
+def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_pos=10, max_w=0.20, cost=0.001, seed=None, risk_fn=None):
     """Takes trades while there is room (10 positions, 1% risk each); marks to market daily.
     seed=None: best score first on the same day · seed=k: random same-day order (for Monte Carlo)."""
     import random
@@ -428,7 +458,10 @@ def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_p
             if len(pos) >= max_pos or t["sym"] in pos:
                 continue
             per = t["entry"] - t["stop"]
-            sh = min(val * risk / per, val * max_w / t["entry"], cash / (t["entry"] * (1 + cost)))
+            rk = risk * (risk_fn(t["signal"]) if risk_fn else 1.0)    # Round 4: regime sizing, decided at the signal close
+            if rk <= 0:
+                continue
+            sh = min(val * rk / per, val * max_w / t["entry"], cash / (t["entry"] * (1 + cost)))
             if sh * t["entry"] < 1000:
                 continue
             cash -= sh * t["entry"] * (1 + cost); taken.append(t)
