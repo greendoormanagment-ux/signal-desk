@@ -1,7 +1,7 @@
 # Signal Desk Playbook
 
 _The one page Claude reads before analyzing any stock or position for Tony. Rules decide; evidence ranks; lessons accumulate._
-_Last updated: Oct 20, 2026 · app v2.11 · 30-day live test 9/29 → 10/29 (rules frozen)_
+_Last updated: Oct 21, 2026 · app v2.11 · 30-day live test 9/29 → 10/29 (rules frozen)_
 
 ## 1. How to analyze a stock (every time, in this order)
 1. **Market regime first.** SPY/QQQ vs 50-day + distribution days (app's gate: UPTREND / PRESSURE / CORRECTION). Also note: S&P vs its 200-day; failed index breakout (closed back under a high it just broke); leaders vs average stock (SPY vs RSP). PRESSURE or worse → new buys are **paper only**.
@@ -49,12 +49,31 @@ Status: queued for the November backtest. None changes live rules until it passe
 - **10/13 · Most test trades came through the weakest entry** (pullbacks). Judge Signal Desk's breakout idea separately from the pullback rule.
 - **Process:** logging bugs distort reviews (stale Entry Price leaked into 95 rows; fixed v2.10.1). Check the data before trusting conclusions.
 
-## 6. Open questions for the 10/29 review
+## 6. What the great stock pickers agree on (and how Signal Desk uses it)
+Distilled from O'Neil, Minervini, Darvas, Livermore, Weinstein, Lynch, Druckenmiller, Paul Tudor Jones, the Turtles/Seykota and Schwager's *Market Wizards* interviews. Their common ground is **risk control and discipline, not prediction**.
+
+| Principle | Who | In Signal Desk today? | Next step |
+|---|---|---|---|
+| Cut every loss small and fast (7–8% max) | O'Neil, Minervini, PTJ | ✓ 8% stop, never lowered | — |
+| Never average down; only add to winners (pyramid) | Livermore, Darvas, O'Neil | Partly (no averaging down by habit) | Test: add ½ position once a breakout is +3–5% with the stop at breakeven |
+| Respect the market trend — most stocks follow it | O'Neil, PTJ (200-day rule), Druckenmiller | ✓ market gate | v3 regime sizing; **follow-through day** to re-enter after a correction (O'Neil) — not in the app |
+| Buy leaders in **leading industry groups** | O'Neil, Minervini | ✗ (stock RS only) | Test an industry-group RS gate (top 40% of groups) |
+| Buy at new highs / proper pivots, not cheap-looking stocks | Darvas, O'Neil, Minervini | ✓ breakout entry | — |
+| Only take trades with reward ≥ 2–3× risk | Minervini, PTJ (5:1) | ✗ | Fix #32 reward-vs-risk check (e.g. target = next resistance or +20%) |
+| Take some profit into strength; let the rest run | O'Neil (+20–25%), Minervini | ✓ SCALE_OUT at +20% | Test O'Neil's 8-week hold: a stock up 20%+ within 3 weeks of a breakout is held 8 weeks |
+| Size by risk; cut size after losses, grow it after wins (progressive exposure) | Minervini, Turtles, Seykota | Partly (1% risk) | Test: after 3 losses in a row → half size until a win |
+| Know what you own — the story in two minutes | Lynch | ✗ | Add a one-line "why this company is growing" to BUY results (AI or 10-Q) |
+| Liquidity and the Fed drive the market | Druckenmiller | Logged only (market.json: credit spreads, VIX, yield curve) | Test as a regime input in November |
+| Have a written method and follow it; review every trade | All of *Market Wizards* | ✓ rules + Decision Log + this playbook | Keep adding Lessons learned |
+
+**Where they disagree — and Signal Desk's choice:** concentration (Druckenmiller, Minervini concentrate in their best ideas) vs diversification (Turtles). Signal Desk uses 1% risk per trade with ≤ 8 positions — closer to the disciplined middle. Re-test concentration only after the system proves an edge.
+
+## 7. Open questions for the 10/29 review
 - Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
 - Did Holding Health scores ≤ 3/5 come before losses?
 - Did BUYs beat DON'T BUYs on 5/10/20-day returns vs SPY (Outcomes tab)?
 - Breakout vs pullback results; UPTREND vs PRESSURE results.
 
-## 7. Where things are
+## 8. Where things are
 App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
 _This file is public — never put account values, keys, or personal details here._
