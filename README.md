@@ -3,7 +3,7 @@
 Stock screener for Tony's 30-day rules test (O'Neil breakouts/pullbacks, Weinstein stages, chandelier stops).
 **Rules decide; Claude only explains.** Live app: https://greendoormanagment-ux.github.io/signal-desk/
 
-_Last updated: Oct 10, 2026 · app v2.9.3 · sheet script v8_
+_Last updated: Oct 20, 2026 · app v2.11 · sheet script v8_
 
 ## Mission
 > *Signal Desk finds high-quality setups, sizes the risk, enforces the exits, and keeps score honestly — so every rule has to earn its place.*
@@ -19,6 +19,19 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 | **4. Prove it works** — benchmarks, costs, unseen data | Started: every scan logged, outcomes tracked, vs S&P in What's Working | Historical backtest (Nov 2026), tune on older years / test on unseen years, 60–90 days live |
 
 **Order of work:** (1) finish the 30-day test (10/29) → (2) backtest + pullback fix (November) → (3) add new signals one at a time, keeping only what improves results → (4) if it proves out, the track record is the product.
+
+## Signal Desk v3 — roadmap (agreed Oct 20, 2026)
+Goal: keep improving real outcomes by putting each **research-proven** technical signal where its evidence is strongest — and adding a piece **only after the backtest proves it**. Live rules stay frozen during a test.
+
+| Layer | Evidence behind it | Planned rule | Replaces today |
+|---|---|---|---|
+| **1. Market regime → position size** | Trend following (century of data; mainly cuts drawdowns) | **Full** = S&P above 200-day + UPTREND → normal size, ≤8 positions · **Reduced** = above 200-day but PRESSURE / failed breakout (#87) / leaders cracking (#88) → half size, ≤4 · **Defense** = below 200-day and 50 < 200 → no new buys, tighten stops | 50-day-only gate (20 pts) |
+| **2. Leadership filter → which stocks** | Relative strength (12-1 month momentum), nearness to 52-week high | Hard gates: **RS rank top 20%** (12-1 month; Mansfield as tiebreaker) · **within 15% of the 52-week high** · EPS ≥ 25% + sales growth (#37) · $5+, $20M+/day. Nightly job builds a 20–60 stock **leader shortlist** (Dec scanner) | RS = 10 pts, no gate |
+| **3. Entry setups → when to buy** | Breakouts near highs; post-earnings drift; short-term reversal (weakest) | (1) **Breakout**: close > pivot on ≥1.4–1.5× volume, ≤5% extended; WATCH until the close (#85) · (2) **Earnings gap** (new): gap ≥4% on the report, upper-half close, ≥3× volume, above 50-day; buy next day, stop under gap-day low · (3) **Pullback on probation**: kept only if #31a–e pass the backtest · **RSI → info only; the 100-pt score is retired** — gates decide, RS rank orders | Pullback = most of today's buys |
+| **4. Risk & exits → survive momentum crashes** | Cut losses; leaders fall hardest in reversals | 1% risk/trade, stop ≤ 8%, A2 trail, Stage 4 exit · **theme cap 2 per theme** (#90) · **regime drops a level → raise stops** to breakeven/trail · no new buys ≤14 days before earnings | Sector warning only |
+
+**Process:** 10/29 day-30 review (no changes before) → **Nov**: one paid EODHD month (full history incl. delisted stocks) → backtest **each layer on its own**, tune on 2005–2016, judge on 2017–2025 (incl. 2008, 2020, 2022) → **pass bar**: higher average gain per trade after costs, drawdown no worse, works on unseen years (beating SPY is not required) → **Dec**: nightly leader shortlist → **Jan**: 60–90-day live test (#36) with only the layers that passed.
+**Realistic target:** 35–45% winners, average win 2–3× average loss, 20–30% drawdowns in bad years. The edge = cutting losses fast and letting leaders run.
 
 ## The pieces
 | Piece | Where | What it does |
@@ -50,6 +63,7 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 - Logged automatically: **Checks** (each check ✓ pass / ✗ fail / ~ neutral), **Pivot**, **App Stop**, **Risk/Share**, **SPY / QQQ vs 50D %**, **SPY / QQQ Dist Days**; since v2.9.3 also **Base Depth %**, **Base Days** (since the pivot high), **50D Slope %**, **5D Vol Ratio** (is volume drying up?), **Avg $Vol (M)**, **RSP vs 50D %** (equal-weight S&P — is the average stock keeping up?); Notes shows app version + date of the EPS and calendar data used.
 - Fill in yourself: **My Call** (Bought / Paper / Skipped / Watching) and **Why** (dropdown) — especially when you skip a BUY or buy something the app didn't rate BUY. Re-sent scans never overwrite these.
 - Trades **AB = Planned Entry** (the app's price when you decided) → **AC = Slippage %** (how far your real fill was from plan).
+- Since v2.9.8–v2.11 also: **Rule Summary** (plain-English ✓/✗ per check + stop/risk; position reviews too), **Health Score / Health Detail** (Position Review: how many buy reasons are still intact — info only), **Day Change % / 5D Change % / Volume Pace** (sharp-drop evidence for Fix #31). Entry Price is blank on Entry Scan rows (v2.10.1 fix). Verdict column is colour-coded (BUY green · HOLD blue · WATCH/caution yellow · SELL red).
 - Rule of thumb: save now anything that can't be rebuilt later (your decisions, what the app said, fill prices). Prices and history can be re-downloaded.
 
 ## Routine
@@ -61,4 +75,6 @@ The goal is an **edge**, not impressive-looking signals. For an individual inves
 
 ## History
 - v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes · v2.9.1 one shared earnings day count (log = rule), data age in Notes · v2.9.2 logs each check + pivot/stop/risk + SPY/QQQ detail; nightly history snapshots + data sanity check · v2.9.3 logs base depth/length, 50-day slope, 5-day volume, dollar volume, RSP (Grok review; Fix List #52–60)
-- The sheet key in `index.html` must match `SECRET` in the sheet script. If it's ever changed, change both and publish a new script version.
+- v2.9.8 Rule Summary · v2.10 Holding Health in Position Review · v2.10.1 Entry Price leak fixed · v2.10.2 honest AI-failed message · v2.10.3 liquidity judged in dollars · v2.11 sharp-drop warning + Day/5D change + volume pace (all logging/info only — rules frozen for the test)
+- The sheet key lives only in each device's setup bar (never in this public file) and must match `SECRET` in the sheet script. If it's ever changed, change both and publish a new script version.
+- Nightly check (Oct 20): if SEC's data feed is behind for a watched stock but the company did file (e.g. KNSA Q2), the run logs a note instead of failing.
