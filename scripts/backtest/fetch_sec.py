@@ -73,6 +73,31 @@ if __name__ == "__main__":
     m = {}
     for v in get("https://www.sec.gov/files/company_tickers.json").values():
         m.setdefault(v["ticker"].upper().replace("-", "."), int(v["cik_str"]))
+    # Round 4: companies that no longer trade are missing from company_tickers.json. When the price source supplied
+    # company names (fetch_eodhd.py), look them up in SEC's name→CIK list. Only an EXACT normalized-name match that
+    # points to ONE company is used, so a look-alike name can never attach the wrong company's earnings.
+    names = json.load(open(os.path.join(prices, "universe.json"))).get("names") or {}
+    miss = [s for s in syms if s not in m and names.get(s)]
+    if miss:
+        import re, urllib.request as ur
+        def norm(x):
+            x = re.sub(r"/[A-Z]{2,3}/?$", "", x.upper())                       # e.g. "/DE/" state suffixes
+            x = re.sub(r"[^A-Z0-9 ]", " ", x)
+            x = re.sub(r"\b(THE|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PLC|LLC|LP|HOLDINGS?|GROUP|NEW|CL A|CLASS A)\b", " ", x)
+            return " ".join(x.split())
+        want = {norm(names[s]): s for s in miss}
+        hits = {}
+        with ur.urlopen(ur.Request("https://www.sec.gov/Archives/edgar/cik-lookup-data.txt", headers=UA), timeout=300) as r:
+            for line in r.read().decode("latin-1").splitlines():
+                p = line.rsplit(":", 2)
+                if len(p) == 3 and p[1].isdigit():
+                    k = norm(p[0])
+                    if k in want:
+                        hits.setdefault(want[k], set()).add(int(p[1]))
+        added = {s: next(iter(c)) for s, c in hits.items() if len(c) == 1}
+        m.update(added)
+        print(f"name lookup for {len(miss)} delisted/renamed symbols: {len(added)} unique SEC matches, "
+              f"{sum(1 for c in hits.values() if len(c) > 1)} ambiguous (skipped)", flush=True)
     todo = [(s, m[s]) for s in syms if s in m]
     print(f"{len(todo)} of {len(syms)} symbols have an SEC CIK", flush=True)
     stats = {}
