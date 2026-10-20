@@ -29,6 +29,10 @@ jobs:
       - name: Build market.json (credit spread, VIX, yield curve from FRED; logging only)
         continue-on-error: true
         run: python scripts/build_market.py market.json
+      - name: Build footprints.json (short interest, insider buys, estimate revisions; info only, never blocks)
+        continue-on-error: true
+        timeout-minutes: 15
+        run: python scripts/build_footprints.py footprints.json
       - name: Save a dated snapshot (history for the 30-day review + backtest)
         run: |
           D=$(date -u +%Y-%m-%d)
@@ -36,6 +40,7 @@ jobs:
           gzip -9 -c eps.json > "history/$D-eps.json.gz"
           if [ -f earnings.json ]; then gzip -9 -c earnings.json > "history/$D-earnings.json.gz"; fi
           if [ -f revenue.json ]; then gzip -9 -c revenue.json > "history/$D-revenue.json.gz"; fi
+          if [ -f footprints.json ]; then gzip -9 -c footprints.json > "history/$D-footprints.json.gz"; fi
           ls -la history | tail -3
       - name: Save to the site
         run: |
@@ -45,6 +50,7 @@ jobs:
           if [ -f earnings.json ]; then git add earnings.json; fi
           if [ -f revenue.json ]; then git add revenue.json; fi
           if [ -f market.json ]; then git add market.json; fi
+          if [ -f footprints.json ]; then git add footprints.json; fi
           git diff --cached --quiet || git commit -m "Nightly SEC EPS + earnings calendar update"
           git pull --rebase origin main
           git push
