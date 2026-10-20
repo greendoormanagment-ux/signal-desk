@@ -1,0 +1,89 @@
+name: Backtest Round 4 (run by hand)
+
+# Round 4: fixing the weaknesses — sell signals, v3 leadership gates, regime sizing — judged on unseen years.
+#   data = free  → Yahoo prices since ~2016 (companies that failed are missing; a PREVIEW). Writes backtest/round4-free-latest.md
+#   data = eodhd → EODHD prices since 2003 INCLUDING delisted companies (needs the paid month + the EODHD_KEY secret).
+#                  Tune 2005-2016, judge 2017-2025. Writes backtest/round4-latest.md + backtest/audit/eodhd-data-coverage.md
+# EODHD's licence does not allow republishing its data: price files stay in the private Actions cache, only reports are committed.
+on:
+  workflow_dispatch:
+    inputs:
+      data:
+        description: "Price data"
+        type: choice
+        options: [free, eodhd]
+        default: free
+
+permissions:
+  contents: write
+
+jobs:
+  round4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install numpy pandas
+      - name: Planted tests (must pass before anything else runs)
+        working-directory: scripts/backtest
+        run: python tests/test_backtest.py
+      - name: Point-in-time S&P 500 membership list
+        run: git clone -q --depth 1 https://github.com/fja05680/sp500.git /tmp/sp500
+
+      # ── free data (same sources as Rounds 1-3)
+      - name: Restore free-data cache
+        if: inputs.data == 'free'
+        uses: actions/cache@v5
+        with:
+          path: /tmp/bt-cache
+          key: bt-cache-${{ github.run_id }}
+          restore-keys: bt-cache-
+      - name: Free prices + SEC (skips files that are still fresh)
+        if: inputs.data == 'free'
+        run: |
+          python scripts/backtest/fetch_prices.py /tmp/bt-cache/prices 2
+          python scripts/backtest/fetch_sec.py /tmp/bt-cache/prices /tmp/bt-cache/sec
+          python scripts/backtest/fetch_sp500.py /tmp/bt-cache/prices /tmp/bt-cache/prices-sp /tmp/bt-cache/sec /tmp/bt-cache
+      - name: Round 4 on free data
+        if: inputs.data == 'free'
+        working-directory: scripts/backtest
+        run: |
+          SEC_DIR=/tmp/bt-cache/sec python audit.py /tmp/bt-cache/prices /tmp/bt-cache/prices-sp /tmp/sp500/sp500_ticker_start_end.csv /tmp/bt-audit || true
+          python run_round4.py /tmp/bt-cache/prices /tmp/bt-cache/sec /tmp/r4 /tmp/sp500/sp500_ticker_start_end.csv /tmp/bt-cache/prices-sp /tmp/bt-audit
+          python report_round4.py /tmp/r4 ../../backtest/round4-free-latest.md
+
+      # ── EODHD data (paid month)
+      - name: Restore EODHD cache
+        if: inputs.data == 'eodhd'
+        uses: actions/cache@v5
+        with:
+          path: /tmp/eod
+          key: eod-cache-${{ github.run_id }}
+          restore-keys: eod-cache-
+      - name: EODHD prices for every S&P 500 member since 2004 (incl. delisted)
+        if: inputs.data == 'eodhd'
+        env:
+          EODHD_KEY: ${{ secrets.EODHD_KEY }}
+        run: |
+          python scripts/backtest/fetch_eodhd.py /tmp/sp500/sp500_ticker_start_end.csv /tmp/eod/prices 2003-01-01
+          mkdir -p backtest/audit && cp /tmp/eod/prices/coverage.md backtest/audit/eodhd-data-coverage.md
+      - name: SEC EPS + earnings dates (incl. name lookup for delisted companies)
+        if: inputs.data == 'eodhd'
+        run: python scripts/backtest/fetch_sec.py /tmp/eod/prices /tmp/eod/sec
+      - name: Round 4 on EODHD data (tune 2005-2016, judge 2017-2025)
+        if: inputs.data == 'eodhd'
+        working-directory: scripts/backtest
+        run: |
+          python run_round4.py /tmp/eod/prices /tmp/eod/sec /tmp/r4 /tmp/sp500/sp500_ticker_start_end.csv
+          python report_round4.py /tmp/r4 ../../backtest/round4-latest.md
+
+      - name: Commit reports (never the price data)
+        run: |
+          git config user.name "signal-desk-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for f in backtest/round4-latest.md backtest/round4-free-latest.md backtest/audit/eodhd-data-coverage.md; do if [ -f "$f" ]; then git add "$f"; fi; done
+          git diff --cached --quiet || git commit -m "Backtest Round 4 (${{ inputs.data }} data)"
+          git pull --rebase -q && git push
