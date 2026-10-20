@@ -36,3 +36,12 @@ The same workflow runs these. Only the `.md` reports are committed, so the repo 
 - `engine.py`: `apply_corrections`, point-in-time `eligibility`, and `rs_rank` (ranked only against stocks eligible that day).
 - `systems.py`: `momentum_open` (trades at the next open, gaps and costs included), `perf_metrics`, and `block_bootstrap_excess`.
 - `run_round3.py` + `report_round3.py`: write `backtest/round3-latest.md` with the Gate 1 and Gate 2 verdicts.
+
+## Round 4 (Oct 20 2026): fixing the weaknesses
+
+- `engine.py`: new options, all OFF by default so Rounds 1–3 reproduce exactly. Sell signals from app v2.13 (`exit_failbo`, `exit_ma50vol`, `exit_climax`, `hold8w`), the v3 leadership gate `near_high`, regime sizing (`portfolio(risk_fn=...)`), and `nosec_pass`. With `nosec_pass`, a company with no SEC file is judged on its price rules, so delisted names can still be bought.
+- `run_round4.py` + `report_round4.py`: 18 variants (exits, entries, market, and the v3 candidate) on the point-in-time S&P 500. They are tuned on early years and judged on unseen years against the Playbook pass bar. Results show avg R after costs, how much gain was given back, portfolio vs SPY, and a bootstrap.
+- `fetch_eodhd.py`: the paid-month data. It covers every S&P 500 member since 2004, including failed and delisted companies, with a coverage report. The key comes only from the `EODHD_KEY` secret. The data is never committed, because its licence forbids republishing.
+- `fetch_sec.py`: finds SEC filings for delisted companies by exact company-name match.
+- Run it from the Actions tab → "Backtest Round 4 (run by hand)". Choose data = `free` for a preview now, or `eodhd` once the paid month is active.
+- Planted tests: 23 (8 new for the sell signals and regime sizing).
