@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.12</title>
+<title>Signal Desk v2.13</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.12<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.13<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -274,6 +274,12 @@ input,button{font-family:inherit}
   <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="footText"></div>
 </div>
 
+<!-- v2.13: sell signals + earnings checkpoint (Position Review, info only) -->
+<div class="panel" id="sellPanel">
+  <div class="pt">SELL SIGNALS + EARNINGS CHECKPOINT · INFO ONLY — DOESN'T CHANGE THE VERDICT</div>
+  <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="sellText"></div>
+</div>
+
 <!-- v2.10: holding health (Position Review, info only) -->
 <div class="panel" id="healthPanel">
   <div class="pt">HOLDING HEALTH · INFO ONLY — DOESN'T CHANGE THE VERDICT</div>
@@ -378,7 +384,7 @@ const show = id => { const el=$(id); if(el) el.style.display="block"; };
 const hide = id => { const el=$(id); if(el) el.style.display="none"; };
 const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
 const hideAll = () => {
-  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel"].forEach(hide);
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel","sellPanel"].forEach(hide);
   $("actRow").style.display="none";
 };
 
@@ -398,7 +404,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.12";
+const APP_VERSION = "v2.13";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -531,6 +537,126 @@ const holdingHealth = (d, ix, cal, sec, entryDateStr) => {
   if (secUsable(sec) && sec.growth !== null) log.epsGrowth = Math.round(sec.growth*10)/10;
   if (rs) log.rsScore = rs.score;
   return { html, log, market: mk?.status || "" };
+};
+// v2.13: SELL SIGNALS + EARNINGS CHECKPOINT (Position Review). INFO / LOGGING ONLY — the verdict above still decides.
+// Playbook §7 (O'Neil / Minervini / Weinstein warning signs) and §8 (hold-through-earnings cushion test).
+// Uses only completed daily bars already fetched (no extra API cost).
+const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
+  const b = Array.isArray(d?.bars) ? d.bars.filter(x => x && x.c > 0) : [];
+  if (!d?.price || b.length < 160) return null;
+  const n = b.length, p = d.price, av = d.avgVolume || 0, r1 = x => Math.round(x * 10) / 10;
+  const ep = parseFloat(entryPriceStr), ed = parseEntryDate(entryDateStr);
+  let ei = -1; // index of the first bar on/after the entry date
+  if (ed) { ei = b.findIndex(x => new Date(String(x.date).slice(0,10) + "T00:00:00") >= ed); }
+  const since = ei >= 0 ? n - ei : null; // sessions held (completed)
+  const runStart = ei >= 1 ? ei : Math.max(1, n - 60); // "the move" = since entry, else the last 60 sessions
+  const pct = (a, z) => (a / z - 1) * 100;
+  const S = [];
+  // 1. Failed breakout: back under your buy price (−2%+) within 20 sessions of buying
+  {
+    const ok = since !== null && since <= 20 && ep > 0;
+    const fired = ok ? p < ep * 0.98 : null;
+    S.push({ k: "Failed breakout", fired, w: 2,
+      t: !ok ? (ep > 0 && since !== null ? `held ${since} sessions — check only applies to the first 20` : "needs buy price + date") : fired ? `${r1(pct(p, ep))}% vs your buy price after ${since} sessions — the breakout isn't holding. Playbook: cut or tighten to just under the breakout-day low` : `holding above your buy price (${r1(pct(p, ep))}%)` });
+  }
+  // 2. Heavy-volume break of the 50-day: a close crossed below the 50-day on above-average volume in the last 3 sessions, still below
+  {
+    const sma = (end) => end >= 50 ? b.slice(end - 50, end).reduce((s, x) => s + x.c, 0) / 50 : null;
+    let hit = null;
+    for (let i = n - 3; i < n; i++) { const m = sma(i + 1), mp = sma(i); if (!m || !mp) continue;
+      if (b[i].c < m && b[i - 1].c >= mp && av && b[i].v > av) hit = { date: String(b[i].date).slice(0, 10), mult: b[i].v / av }; }
+    const below = d.sma50 ? p < d.sma50 : null;
+    const fired = below === null ? null : !!(hit && below);
+    S.push({ k: "50-day break on volume", fired, w: 2,
+      t: fired ? `closed below the 50-day on ${hit.date} on ${r1(hit.mult)}× normal volume, still below ($${fmt(d.sma50)}). Playbook: sell at least half` : below ? `below the 50-day ($${fmt(d.sma50)}) but not on heavy volume — watch` : `above the 50-day ($${d.sma50 ? fmt(d.sma50) : "?"})` });
+  }
+  // 3. Climax run: big run, then the fastest week of the move / nearly every day up / exhaustion gap / far above the 200-day
+  {
+    const base = ep > 0 && ei >= 0 ? ep : Math.min(...b.slice(runStart).map(x => x.l || x.c));
+    const run = pct(p, base);
+    const wk = []; for (let i = Math.max(runStart + 5, n - 60); i < n; i++) wk.push({ i, g: pct(b[i].c, b[i - 5].c) });
+    const best = wk.reduce((m, x) => x.g > m.g ? x : m, { g: -1e9, i: -1 });
+    const fastest = best.i >= n - 3 && best.g >= 12;
+    const ups = b.slice(n - 9).filter((x, k) => x.c > b[n - 10 + k].c).length;
+    let gap = null; for (let i = n - 3; i < n; i++) if (b[i].o >= b[i - 1].h * 1.03 && av && b[i].v >= av * 2) gap = String(b[i].date).slice(0, 10);
+    const ext200 = d.sma200 ? pct(p, d.sma200) : null;
+    const signs = [fastest && `fastest week of the move (+${r1(best.g)}%)`, ups >= 7 && `${ups} of the last 9 days up`, gap && `gap up on 2×+ volume ${gap}`, ext200 >= 70 && `${Math.round(ext200)}% above the 200-day`].filter(Boolean);
+    const fired = run >= 20 && signs.length > 0;
+    S.push({ k: "Climax run", fired, w: 1,
+      t: fired ? `up ${Math.round(run)}% in the move and ${signs.join(", ")}. Playbook: take profit into strength` : `no climax signs (move ${run >= 0 ? "+" : ""}${Math.round(run)}%${ext200 !== null ? `, ${Math.round(ext200)}% vs 200-day` : ""})` });
+  }
+  // 4. Worst day of the move: largest one-day % drop since the move began happened in the last 3 sessions, on above-average volume
+  {
+    let worst = { g: 0, i: -1 };
+    for (let i = runStart; i < n; i++) { const g = pct(b[i].c, b[i - 1].c); if (g < worst.g) worst = { g, i }; }
+    const fired = worst.i >= n - 3 && worst.g <= -3 && av && b[worst.i].v > av;
+    S.push({ k: "Worst day of the move", fired: !!fired, w: 1,
+      t: fired ? `${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)} (${r1(b[worst.i].v / av)}× volume) — biggest drop since the move began. Playbook: tighten stop or trim` : worst.i >= 0 ? `biggest drop of the move ${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)}` : "no down days in the move" });
+  }
+  // 5. Distribution cluster: 3+ down days on above-average volume in the last 10 sessions
+  {
+    let dist = 0; for (let i = n - 10; i < n; i++) if (b[i].c <= b[i - 1].c * 0.998 && av && b[i].v > av) dist++;
+    S.push({ k: "Distribution cluster", fired: dist >= 3, w: 1,
+      t: `${dist} heavy-volume down day${dist === 1 ? "" : "s"} in the last 10 sessions${dist >= 3 ? ". Playbook: tighten stop, no adding" : ""}` });
+  }
+  // 6. Stage change (Weinstein): 150-day (~30-week) line flat/falling AND price below it
+  {
+    const s150 = (end) => b.slice(end - 150, end).reduce((s, x) => s + x.c, 0) / 150;
+    const now = s150(n), then = s150(n - 10), slope = pct(now, then);
+    const fired = p < now && slope <= 0.2;
+    S.push({ k: "Stage change", fired, w: 2,
+      t: `${p < now ? "below" : "above"} the 150-day ($${fmt(now)}), line ${slope > 0.2 ? "rising" : slope < -0.2 ? "falling" : "flat"}${fired ? " — Stage 3/4 risk. Playbook: exit what's left" : ""}` });
+  }
+  // 7. Market turns
+  {
+    const fired = mktStatus ? /PRESSURE|CORRECTION/.test(mktStatus) : null;
+    S.push({ k: "Market", fired, w: mktStatus === "CORRECTION" ? 2 : 1,
+      t: mktStatus ? `${mktStatus}${fired ? " — tighten stops, no adding" : ""}` : "not available" });
+  }
+  const on = S.filter(x => x.fired === true), pts = on.reduce((s, x) => s + x.w, 0);
+  const read = pts === 0 ? "No sell warnings" : pts === 1 ? "1 warning — watch closely" : pts <= 3 ? `${on.length} warning${on.length > 1 ? "s" : ""} — tighten your stop` : `${on.length} warnings — consider selling at least half`;
+  return { S, on, read, pts };
+};
+// Earnings checkpoint (Playbook §8): gain since entry vs the expected earnings move
+const earningsCheck = (d, entryPriceStr, cal, stopStr, sym) => {
+  if (!d?.price || !cal?.date) return null;
+  const days = daysUntil(cal.date); if (!(days >= 0)) return null;
+  const p = d.price, ep = parseFloat(entryPriceStr), r1 = x => Math.round(x * 10) / 10;
+  // expected move: your broker's implied move if saved for this report, else the stock's 4 biggest gaps of the past year (usually its earnings days)
+  let exp = null, src = "";
+  try { const s = JSON.parse(store.get("sd2-im-" + sym) || "null"); if (s && s.v > 0 && s.rep === cal.date) { exp = s.v; src = "your implied move"; } } catch(e) {}
+  if (exp === null) {
+    const b = Array.isArray(d.bars) ? d.bars.slice(-252) : [];
+    const gaps = []; for (let i = 1; i < b.length; i++) if (b[i].o > 0 && b[i - 1].c > 0) gaps.push(Math.abs(b[i].o / b[i - 1].c - 1) * 100);
+    gaps.sort((a, z) => z - a);
+    if (gaps.length >= 4) { exp = r1((gaps[0] + gaps[1] + gaps[2] + gaps[3]) / 4); src = "estimate: avg of this stock's 4 biggest gaps in the past year"; }
+  }
+  const gain = ep > 0 ? r1((p / ep - 1) * 100) : null;
+  let call, cls;
+  if (days > 14) { call = `Next report in ${days} days — the checkpoint opens 14 days before`; cls = "info"; }
+  else if (gain === null) { call = "Enter your buy price to run the cushion test"; cls = "info"; }
+  else if (gain < 0) { call = "At a loss into the report — don't hold a full position (trim to half or less)"; cls = "warn"; }
+  else if (exp !== null && gain >= exp) { call = "Cushion is bigger than the expected move — OK to hold the full position"; cls = "ok"; }
+  else if (exp !== null) { call = "Cushion is smaller than the expected move — trim to half before the report"; cls = "warn"; }
+  else { call = "Expected move unknown — add your broker's implied move"; cls = "info"; }
+  const cs = parseFloat(stopStr), worst = exp !== null ? p * (1 - exp / 100) : null;
+  const gapNote = worst !== null && cs > 0 ? (worst < cs ? `<br>A gap down of that size ($${fmt(worst)}) would open <b>below your stop $${fmt(cs)}</b> — the stop won't protect you.` : `<br>A gap down of that size ($${fmt(worst)}) stays above your stop $${fmt(cs)}.`) : "";
+  return { days, date: cal.date, gain, exp, src, call, cls, gapNote };
+};
+const sellPanelHtml = (sig, ec, sym) => {
+  const mark = f => f === true ? "✗" : f === false ? "✓" : "~";
+  let h = "";
+  if (sig) h += `<b>${sig.read}</b>` + sig.S.map(x => `<br>${mark(x.fired)} <b>${x.k}:</b> ${x.t}`).join("");
+  if (ec) {
+    const col = ec.cls === "ok" ? "#30A46C" : ec.cls === "warn" ? "#E8A33D" : "#8FB6DA";
+    h += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)"><b>📅 EARNINGS CHECKPOINT</b> — report ${ec.date} (${ec.days} day${ec.days === 1 ? "" : "s"})`
+      + (ec.days <= 14 ? `<br>Your cushion: <b>${ec.gain === null ? "?" : (ec.gain >= 0 ? "+" : "") + ec.gain + "%"}</b> · Expected move: <b>${ec.exp === null ? "?" : "±" + ec.exp + "%"}</b> <span style="opacity:.7">(${ec.src || "n/a"})</span>` : "")
+      + `<br><b style="color:${col}">${ec.call}</b>${ec.days <= 14 ? ec.gapNote : ""}`
+      + (ec.days <= 14 ? `<br><span style="opacity:.8">After the report: gap up on 2×+ volume that holds the day's low = hold/add · gap down through your stop = sell at the open · stop holds = rescan after the close.</span>`
+        + `<br><span style="font-size:11.5px">Implied move from Fidelity/Schwab (%): <input id="imInp" class="inp sm" inputmode="decimal" style="display:inline-block;width:70px;padding:4px 6px;font-size:12px" value="${ec.src === "your implied move" ? ec.exp : ""}"> <button class="btn-sm" id="imSave" style="padding:4px 8px">SAVE</button></span>` : "")
+      + `</div>`;
+  }
+  return h + `<br><span style="opacity:.7">Playbook §7–§8 warning signs. Info only — the verdict above still decides. Logged for the day-30 review and the November exit backtest.</span>`;
 };
 // v2.11: today's move + volume pace — uses data already fetched (quote + daily bars). INFO/LOGGING ONLY, no rule reads it.
 const dayMove = (d) => {
@@ -794,7 +920,8 @@ const sendToSheet = (h) => {
     "200D Slope %":R.sma200slope, "Breakout Date":R.boDate, "Sessions Since Breakout":R.boAgo, "ATR %":R.atrPct, "Rule Summary":R.why, "Health Score":R.healthScore, "Health Detail":R.healthDetail,
     "Day Change %":R.dayChg, "5D Change %":R.chg5, "Volume Pace":R.volPace, // v2.11
     "Footprint":R.fpRead, "Up/Down Vol":R.fpUD, "Accum Days":R.fpAcc, "Distrib Days":R.fpDist, "Close Strength":R.fpClose, "Pocket Pivot":R.fpPocket, "Vol Dry-Up":R.fpDry,
-    "Short Days to Cover":R.siDTC, "Short Chg %":R.siChg, "Insider Buys 90d":R.insBuys, "Insider Buyers 90d":R.insBuyers, "Insider Sells 90d":R.insSells, "Est Revision %":R.estRev }); // v2.12
+    "Short Days to Cover":R.siDTC, "Short Chg %":R.siChg, "Insider Buys 90d":R.insBuys, "Insider Buyers 90d":R.insBuyers, "Insider Sells 90d":R.insSells, "Est Revision %":R.estRev, // v2.12
+    "Sell Signals":R.sellSignals, "Sell Signal Count":R.sellCount, "Earnings Cushion %":R.earnCushion, "Expected Move %":R.expMove, "Move Source":R.moveSrc, "Earnings Call":R.earnCall }); // v2.13
   fetch(SHEET_URL, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) })
     .then(() => { window.sheetStatus = " · sheet ✓"; updateLogCount(); })
     .catch(() => { window.sheetStatus = " · sheet ✗ (offline?)"; updateLogCount(); });
@@ -1451,6 +1578,22 @@ $("goBtn").onclick = async () => {
     const foot = footprints(d, await fpP); // v2.12
     if (foot) { $("footText").innerHTML = foot.html; show("footPanel"); }
     if (health) { $("healthText").innerHTML = health.html; show("healthPanel"); }
+    // v2.13: sell signals + earnings checkpoint (Position Review, info only)
+    const sig = mode==="position" ? sellSignals(d, $("ep").value, $("ed").value, health?.market || "") : null;
+    const calV = await calP;
+    let ec = mode==="position" ? earningsCheck(d, $("ep").value, calV, $("cs").value, sym) : null;
+    const drawSell = () => {
+      $("sellText").innerHTML = sellPanelHtml(sig, ec, sym); show("sellPanel");
+      const btn = $("imSave"); if (btn) btn.onclick = () => {
+        const v = parseFloat($("imInp").value);
+        if (v > 0) store.set("sd2-im-"+sym, JSON.stringify({ v, rep: ec.date })); else store.set("sd2-im-"+sym, "");
+        ec = earningsCheck(d, $("ep").value, calV, $("cs").value, sym); drawSell();
+      };
+    };
+    if (sig || ec) drawSell();
+    const sellLog = {};
+    if (sig) { sellLog.sellSignals = sig.on.map(x=>x.k).join(", ") || "none"; sellLog.sellCount = sig.on.length; }
+    if (ec && ec.days <= 14) { sellLog.earnCushion = ec.gain ?? ""; sellLog.expMove = ec.exp ?? ""; sellLog.moveSrc = /implied/.test(ec.src) ? "implied" : ec.src ? "gap estimate" : ""; sellLog.earnCall = ec.call; }
 
     // 6. log
     const entry = {
@@ -1467,7 +1610,7 @@ $("goBtn").onclick = async () => {
       gainPct: typeof finalRule.gainPct==="number"?finalRule.gainPct.toFixed(1):"",
       action: "",
       batch: !!window.__batchRun,
-      research: Object.assign(scanResearch(d, finalRule, ai), health ? health.log : {}, foot ? foot.log : {}),
+      research: Object.assign(scanResearch(d, finalRule, ai), health ? health.log : {}, foot ? foot.log : {}, sellLog),
       id: Date.now() + "-" + sym,
       blocked: (finalRule.rating==="CHECK_FIRST") ? "UNVERIFIED — " + (finalRule.unverified||[]).join(" · ") : (mode!=="position" && finalRule.checks) ? ["market","trend","entry","fundamentals","earnings"].filter(k=>finalRule.checks[k]?.status==="fail").map(k=>k+": "+finalRule.checks[k].detail).join(" · ") : "",
     };
