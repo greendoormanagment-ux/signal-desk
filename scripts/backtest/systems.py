@@ -256,7 +256,9 @@ def simulate(sym, f, entries, X, start, end):
 
 
 # ───────────── portfolio: ranked, max N positions, sector cap, partial fills
-def portfolio(trades, closes, cal, start, end, max_pos=8, sector_cap=2, risk=0.01, max_w=0.25, cost=0.001, seed=None):
+def portfolio(trades, closes, cal, start, end, max_pos=8, sector_cap=2, risk=0.01, max_w=0.25, cost=0.001, seed=None,
+              idle=None, idle_cost=0.0003, stats=None):
+    """idle=(spy_open, spy_close): money not in a stock sits in SPY (Round 5); see engine.portfolio."""
     rnd = random.Random(seed)
     by_day = {}
     for t in trades:
@@ -268,14 +270,19 @@ def portfolio(trades, closes, cal, start, end, max_pos=8, sector_cap=2, risk=0.0
         else:
             rnd.shuffle(by_day[d])
     cash, pos, eq, taken = 100_000.0, {}, [], []
+    io, ic = idle if idle else ({}, {})
+    xc = idle_cost if idle else 0.0
+    prev, inv = None, []
 
     def settle(p, d):
         nonlocal cash
         while p["next"] < len(p["t"]["fills"]) and p["t"]["fills"][p["next"]][0] <= d:
             _, fr, px, _ = p["t"]["fills"][p["next"]]
-            cash += p["sh0"] * fr * px * (1 - cost); p["sh"] -= p["sh0"] * fr; p["next"] += 1
+            cash += p["sh0"] * fr * px * (1 - cost) * (1 - xc); p["sh"] -= p["sh0"] * fr; p["next"] += 1
 
     for d in (x for x in cal if start <= x <= end):
+        if idle and prev and cash > 0 and ic.get(prev) and io.get(d):
+            cash *= io[d] / ic[prev]
         for k in list(pos):
             settle(pos[k], d)
             if pos[k]["next"] >= len(pos[k]["t"]["fills"]):
@@ -289,14 +296,20 @@ def portfolio(trades, closes, cal, start, end, max_pos=8, sector_cap=2, risk=0.0
             sh = min(val * risk / (t["entry"] - t["stop"]), val * max_w / t["entry"], cash / (t["entry"] * (1 + cost)))
             if sh * t["entry"] < 1000:
                 continue
-            cash -= sh * t["entry"] * (1 + cost); taken.append(t)
+            cash -= sh * t["entry"] * (1 + cost) * (1 + xc); taken.append(t)
             pos[t["sym"]] = {"t": t, "sh": sh, "sh0": sh, "next": 0, "last": t["entry"]}
             settle(pos[t["sym"]], d)
             if pos[t["sym"]]["next"] >= len(t["fills"]):
                 del pos[t["sym"]]
+        if idle and cash > 0 and io.get(d) and ic.get(d):
+            cash *= ic[d] / io[d]
         for s, p in pos.items():
             p["last"] = closes[s].get(d, p["last"])
-        eq.append((d, cash + sum(p["sh"] * p["last"] for p in pos.values())))
+        held = sum(p["sh"] * p["last"] for p in pos.values()); tot = cash + held
+        inv.append(held / tot if tot > 0 else 0); prev = d
+        eq.append((d, tot))
+    if stats is not None:
+        stats["avg_in_stocks_%"] = round(100 * float(np.mean(inv)), 1) if inv else 0
     return pd.Series([x for _, x in eq], index=[d for d, _ in eq]), taken
 
 
