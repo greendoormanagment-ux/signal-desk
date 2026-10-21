@@ -182,4 +182,17 @@ check("R4 regime half size", abs(eq.iloc[-1] - 101_000.0) < 1e-6 and len(tk) == 
 eq, tk = E.portfolio(tr, {"X": {d: 110.0 for d in cal}}, cal, cal[0], cal[-1], risk=0.01, cost=0.0, risk_fn=lambda d: 0.0)
 check("R4 regime defense = no new buys", abs(eq.iloc[-1] - 100_000.0) < 1e-6 and len(tk) == 0, eq.iloc[-1])
 
+# ── 10. Round 5: idle cash sits in SPY
+cal = dates(5)
+spy_o = {d: 100.0 + 2 * k for k, d in enumerate(cal)}; spy_c = {d: 101.0 + 2 * k for k, d in enumerate(cal)}
+st = {}
+eq, tk = E.portfolio([], {}, cal, cal[0], cal[-1], idle=(spy_o, spy_c), stats=st)
+# all cash in SPY from the first close (101) to the last close (109) → 100,000 × 109/101 (day 0 earns open→close too: ×101/100)
+check("R5 idle cash earns SPY", abs(eq.iloc[-1] - 100_000 * 101 / 100 * 109 / 101) < 1e-6 and st["avg_in_stocks_%"] == 0, (eq.iloc[-1], st))
+flat = {d: 100.0 for d in cal}
+tr = [{"sym": "X", "signal": "2020-01-01", "entry_date": cal[1], "entry": 100.0, "stop": 90.0, "exit_date": cal[3], "exit": 120.0, "score": 1}]
+eq, tk = E.portfolio(tr, {"X": {d: 110.0 for d in cal}}, cal, cal[0], cal[-1], cost=0.001, idle=(flat, flat), idle_cost=0.0003)
+exp = 100_000 - 100 * 100 * 1.001 * 1.0003 + 100 * 120 * 0.999 * 0.9997
+check("R5 idle switch costs charged both ways", abs(eq.iloc[-1] - exp) < 1e-6, (eq.iloc[-1], exp))
+
 print(f"all {len(PASS)} planted tests passed")
