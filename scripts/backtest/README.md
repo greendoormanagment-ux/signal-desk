@@ -45,3 +45,11 @@ The same workflow runs these. Only the `.md` reports are committed, so the repo 
 - `fetch_sec.py`: finds SEC filings for delisted companies by exact company-name match.
 - Run it from the Actions tab → "Backtest Round 4 (run by hand)". Choose data = `free` for a preview now, or `eodhd` once the paid month is active.
 - Planted tests: 23 (8 new for the sell signals and regime sizing).
+
+## Round 5 (Oct 21 2026): can it beat SPY?
+
+- Round 4 exposed three gaps: cash drag (sitting in cash between setups while SPY is always invested), a trailing stop that cuts winners short, and an untested best idea.
+- `engine.portfolio` / `systems.portfolio`: new `idle=(spy_open, spy_close)` option. Money not in a stock earns SPY, prior close → open, then open → close, and each switch costs 0.03%. `stats` reports the average share of the account held in stocks.
+- `run_round5.py` + `report_round5.py`: 12 variants (idle SPY, exits that let winners run, trend template, and Round 1's combined system) on the point-in-time S&P 500.
+- The pass bar was set before the run: beat SPY in BOTH tune and judge, ≥70% of bootstrap resamples above zero, and a drawdown no worse than SPY's + 5 pts.
+- Actions → "Backtest Round 5 (run by hand)", data = `free` or `eodhd`. Planted tests: 25.
