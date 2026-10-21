@@ -435,9 +435,13 @@ def rs_rank(prices, cal, eligible=None):
     return {s: rk[s] for s in rk.columns}
 
 
-def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_pos=10, max_w=0.20, cost=0.001, seed=None, risk_fn=None):
+def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_pos=10, max_w=0.20, cost=0.001, seed=None, risk_fn=None,
+              idle=None, idle_cost=0.0003, stats=None):
     """Takes trades while there is room (10 positions, 1% risk each); marks to market daily.
-    seed=None: best score first on the same day · seed=k: random same-day order (for Monte Carlo)."""
+    seed=None: best score first on the same day · seed=k: random same-day order (for Monte Carlo).
+    Round 5 — idle=(spy_open, spy_close) dicts: money not in a stock sits in SPY. It earns SPY from the prior close
+    to the open, trades happen at the open, then it earns SPY open → close. Each switch SPY↔stock pays idle_cost.
+    stats (dict, optional) receives the average share of the account held in stocks."""
     import random
     rnd = random.Random(seed)
     by_day = {}
@@ -450,9 +454,13 @@ def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_p
             rnd.shuffle(by_day[d])
     cash, pos, eq, taken = cash0, {}, [], []
     days = [d for d in cal if start <= d <= end]
+    io, ic = idle if idle else ({}, {})
+    prev, inv = None, []
     for d in days:
+        if idle and prev and cash > 0 and ic.get(prev) and io.get(d):
+            cash *= io[d] / ic[prev]                                     # idle money in SPY: prior close → today's open
         for k in [k for k, p in pos.items() if p["t"]["exit_date"] <= d]:
-            p = pos.pop(k); cash += p["sh"] * p["t"]["exit"] * (1 - cost)
+            p = pos.pop(k); cash += p["sh"] * p["t"]["exit"] * (1 - cost) * (1 - (idle_cost if idle else 0))
         val = cash + sum(p["sh"] * closes[p["t"]["sym"]].get(d, p["last"]) for p in pos.values())
         for t in by_day.get(d, []):
             if len(pos) >= max_pos or t["sym"] in pos:
@@ -464,14 +472,20 @@ def portfolio(trades, closes, cal, start, end, cash0=100_000.0, risk=0.01, max_p
             sh = min(val * rk / per, val * max_w / t["entry"], cash / (t["entry"] * (1 + cost)))
             if sh * t["entry"] < 1000:
                 continue
-            cash -= sh * t["entry"] * (1 + cost); taken.append(t)
+            cash -= sh * t["entry"] * (1 + cost) * (1 + (idle_cost if idle else 0)); taken.append(t)
             if t["exit_date"] <= d:                                      # stopped out the same day
-                cash += sh * t["exit"] * (1 - cost)
+                cash += sh * t["exit"] * (1 - cost) * (1 - (idle_cost if idle else 0))
             else:
                 pos[t["sym"]] = {"t": t, "sh": sh, "last": t["entry"]}
+        if idle and cash > 0 and io.get(d) and ic.get(d):
+            cash *= ic[d] / io[d]                                        # idle money in SPY: open → close
         for p in pos.values():
             p["last"] = closes[p["t"]["sym"]].get(d, p["last"])
-        eq.append((d, cash + sum(p["sh"] * p["last"] for p in pos.values())))
+        held = sum(p["sh"] * p["last"] for p in pos.values()); tot = cash + held
+        inv.append(held / tot if tot > 0 else 0); prev = d
+        eq.append((d, tot))
+    if stats is not None:
+        stats["avg_in_stocks_%"] = round(100 * float(np.mean(inv)), 1) if inv else 0
     return pd.Series([v for _, v in eq], index=[d for d, _ in eq]), taken
 
 
