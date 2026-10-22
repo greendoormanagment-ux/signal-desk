@@ -1,14 +1,14 @@
 {
  "summary": {
-  "asOf": "2026-10-12",
-  "mode": "free tier",
+  "asOf": "2026-10-22",
+  "mode": "depth (paid)",
   "missing_sp500_names": 103,
-  "listed_in_eodhd": 102,
-  "listed_pct": 99.0,
-  "eodhd_us_delisted_total": 60420,
-  "eodhd_us_delisted_common_stocks": 33175,
-  "price_samples": 15,
-  "price_samples_with_rows": 11
+  "listed_in_eodhd": 103,
+  "listed_pct": 100.0,
+  "eodhd_us_delisted_total": 60436,
+  "eodhd_us_delisted_common_stocks": 33189,
+  "price_samples": 103,
+  "price_samples_with_rows": 103
  },
  "names": [
   {
@@ -16,49 +16,70 @@
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Altaba Inc"
+   "eodhd_name": "Altaba Inc",
+   "sample_rows": 944,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-10-02"
   },
   {
    "ticker": "ABMD",
    "first_missing_year": "2018",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "ABIOMED Inc"
+   "eodhd_name": "ABIOMED Inc",
+   "sample_rows": 1758,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-12-23"
   },
   {
    "ticker": "ADS",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Alliance Data Systems Corporation"
+   "eodhd_name": "Alliance Data Systems Corporation",
+   "sample_rows": 1574,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-04-01"
   },
   {
    "ticker": "AET",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Aetna Inc"
+   "eodhd_name": "Aetna Inc",
+   "sample_rows": 733,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-11-28"
   },
   {
    "ticker": "AGN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Allergan plc"
+   "eodhd_name": "Allergan plc",
+   "sample_rows": 1095,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-05-08"
   },
   {
    "ticker": "ALXN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Alexion Pharmaceuticals Inc"
+   "eodhd_name": "Alexion Pharmaceuticals Inc",
+   "sample_rows": 1397,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-07-21"
   },
   {
    "ticker": "ANDV",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Andeavor"
+   "eodhd_name": "Andeavor",
+   "sample_rows": 691,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-09-28"
   },
   {
    "ticker": "ANSS",
@@ -66,22 +87,29 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "ANSYS Inc",
-   "sample_rows": 0,
-   "sample_note": "no rows"
+   "sample_rows": 2398,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-07-17"
   },
   {
    "ticker": "APC",
    "first_missing_year": "2017",
    "listed": true,
    "status": "active",
-   "eodhd_name": "ARKO Petroleum Corp."
+   "eodhd_name": "ARKO Petroleum Corp.",
+   "sample_rows": 175,
+   "sample_first": "2026-02-12",
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "ATVI",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Activision Blizzard Inc"
+   "eodhd_name": "Activision Blizzard Inc",
+   "sample_rows": 1959,
+   "sample_first": "2016-01-04",
+   "sample_last": "2023-10-13"
   },
   {
    "ticker": "AVB",
@@ -89,8 +117,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "AvalonBay Communities Inc",
-   "sample_rows": 211,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2669,
+   "sample_first": "2016-01-04",
    "sample_last": "2026-08-14"
   },
   {
@@ -98,91 +126,130 @@
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Bed Bath & Beyond, Inc."
+   "eodhd_name": "Bed Bath & Beyond, Inc.",
+   "sample_rows": 2684,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-09-04"
   },
   {
    "ticker": "BCR",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "C.R. Bard Inc"
+   "eodhd_name": "C.R. Bard Inc",
+   "sample_rows": 502,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-12-28"
   },
   {
    "ticker": "CA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Xtrackers California Municipal Bonds ETF"
+   "eodhd_name": "Xtrackers California Municipal Bonds ETF",
+   "sample_rows": 612,
+   "sample_first": "2023-12-14",
+   "sample_last": "2026-05-26"
   },
   {
    "ticker": "CBS",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "ViacomCBS Inc"
+   "eodhd_name": "ViacomCBS Inc",
+   "sample_rows": 988,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-12-04"
   },
   {
    "ticker": "CDAY",
    "first_missing_year": "2021",
-   "listed": false,
-   "status": "",
-   "eodhd_name": ""
+   "listed": true,
+   "status": "delisted",
+   "eodhd_name": "Ceridian HCM Holding Inc",
+   "sample_rows": 1451,
+   "sample_first": "2018-04-26",
+   "sample_last": "2024-01-31"
   },
   {
    "ticker": "CELG",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Celgene Corporation"
+   "eodhd_name": "Celgene Corporation",
+   "sample_rows": 979,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-11-20"
   },
   {
    "ticker": "CERN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Cerner Corp"
+   "eodhd_name": "Cerner Corp",
+   "sample_rows": 1620,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-06-08"
   },
   {
    "ticker": "CHK",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Chesapeake Energy Corporation"
+   "eodhd_name": "Chesapeake Energy Corporation",
+   "sample_rows": 2201,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-10-01"
   },
   {
    "ticker": "CMA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Comerica Incorporated"
+   "eodhd_name": "Comerica Incorporated",
+   "sample_rows": 2534,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-01-30"
   },
   {
    "ticker": "COG",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Cabot Oil & Gas Corporation"
+   "eodhd_name": "Cabot Oil & Gas Corporation",
+   "sample_rows": 1492,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-12-03"
   },
   {
    "ticker": "COL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Rockwell Collins Inc"
+   "eodhd_name": "Rockwell Collins Inc",
+   "sample_rows": 731,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-11-26"
   },
   {
    "ticker": "CSRA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "active",
-   "eodhd_name": "Cohen & Steers ETF Trust"
+   "eodhd_name": "Cohen & Steers ETF Trust",
+   "sample_rows": 51,
+   "sample_first": "2026-08-12",
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "CTLT",
    "first_missing_year": "2020",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Catalent Inc"
+   "eodhd_name": "Catalent Inc",
+   "sample_rows": 2255,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-12-17"
   },
   {
    "ticker": "CTRA",
@@ -190,8 +257,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Coterra Energy Inc",
-   "sample_rows": 143,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2601,
+   "sample_first": "2016-01-04",
    "sample_last": "2026-05-07"
   },
   {
@@ -199,14 +266,20 @@
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Citrix Systems Inc"
+   "eodhd_name": "Citrix Systems Inc",
+   "sample_rows": 1698,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-09-29"
   },
   {
    "ticker": "CXO",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Concho Resources Inc"
+   "eodhd_name": "Concho Resources Inc",
+   "sample_rows": 1270,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-01-19"
   },
   {
    "ticker": "DAY",
@@ -214,8 +287,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Dayforce Inc.",
-   "sample_rows": 79,
-   "sample_first": "2025-10-13",
+   "sample_rows": 1955,
+   "sample_first": "2018-04-26",
    "sample_last": "2026-02-04"
   },
   {
@@ -224,43 +297,59 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Discover Financial Services",
-   "sample_rows": 0,
-   "sample_note": "no rows"
+   "sample_rows": 2357,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-05-16"
   },
   {
    "ticker": "DISCA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Discovery Inc"
+   "eodhd_name": "Discovery Inc",
+   "sample_rows": 1579,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-04-08"
   },
   {
    "ticker": "DISCK",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Discovery Inc"
+   "eodhd_name": "Discovery Inc",
+   "sample_rows": 1579,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-04-08"
   },
   {
    "ticker": "DISH",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "DISH Network Corporation"
+   "eodhd_name": "DISH Network Corporation",
+   "sample_rows": 2015,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-01-04"
   },
   {
    "ticker": "DNB",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Dun & Bradstreet Holdings Inc."
+   "eodhd_name": "Dun & Bradstreet Holdings Inc.",
+   "sample_rows": 1294,
+   "sample_first": "2020-07-01",
+   "sample_last": "2025-08-25"
   },
   {
    "ticker": "DRE",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Duke Realty Corporation"
+   "eodhd_name": "Duke Realty Corporation",
+   "sample_rows": 1700,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-10-03"
   },
   {
    "ticker": "EA",
@@ -268,8 +357,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Electronic Arts Inc",
-   "sample_rows": 203,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2661,
+   "sample_first": "2016-01-04",
    "sample_last": "2026-08-04"
   },
   {
@@ -277,28 +366,40 @@
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Endo International PLC"
+   "eodhd_name": "Endo International PLC",
+   "sample_rows": 1718,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-10-27"
   },
   {
    "ticker": "ESRX",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Express Scripts Holding Co"
+   "eodhd_name": "Express Scripts Holding Co",
+   "sample_rows": 748,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-12-20"
   },
   {
    "ticker": "ETFC",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "E*TRADE Financial LLC"
+   "eodhd_name": "E*TRADE Financial LLC",
+   "sample_rows": 1197,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-10-02"
   },
   {
    "ticker": "EVHC",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Envision Healthcare Holdings"
+   "eodhd_name": "Envision Healthcare Holdings",
+   "sample_rows": 699,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-10-10"
   },
   {
    "ticker": "FDXF",
@@ -306,58 +407,79 @@
    "listed": true,
    "status": "active",
    "eodhd_name": "FedEx Freight Holding Company, Inc.",
-   "sample_rows": 96,
+   "sample_rows": 105,
    "sample_first": "2026-05-26",
-   "sample_last": "2026-10-09"
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "FL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Foot Locker Inc"
+   "eodhd_name": "Foot Locker Inc",
+   "sample_rows": 2433,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-09-05"
   },
   {
    "ticker": "FLIR",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "FLIR Systems Inc."
+   "eodhd_name": "FLIR Systems Inc.",
+   "sample_rows": 1351,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-05-14"
   },
   {
    "ticker": "FRC",
    "first_missing_year": "2019",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "First Republic Bank"
+   "eodhd_name": "First Republic Bank",
+   "sample_rows": 1845,
+   "sample_first": "2016-01-04",
+   "sample_last": "2023-05-02"
   },
   {
    "ticker": "FTR",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Frontier Communications Corporation"
+   "eodhd_name": "Frontier Communications Corporation",
+   "sample_rows": 1088,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-04-29"
   },
   {
    "ticker": "GGP",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "General Growth Properties Inc "
+   "eodhd_name": "General Growth Properties Inc ",
+   "sample_rows": 668,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-08-27"
   },
   {
    "ticker": "HAR",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Harman International Industries Inc./DE/"
+   "eodhd_name": "Harman International Industries Inc./DE/",
+   "sample_rows": 299,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-03-10"
   },
   {
    "ticker": "HBI",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Hanesbrands Inc"
+   "eodhd_name": "Hanesbrands Inc",
+   "sample_rows": 2494,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-12-02"
   },
   {
    "ticker": "HES",
@@ -365,8 +487,9 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Hess Corporation",
-   "sample_rows": 0,
-   "sample_note": "no rows"
+   "sample_rows": 2399,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-07-18"
   },
   {
    "ticker": "HOLX",
@@ -374,8 +497,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Hologic Inc",
-   "sample_rows": 121,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2579,
+   "sample_first": "2016-01-04",
    "sample_last": "2026-04-07"
   },
   {
@@ -384,9 +507,9 @@
    "listed": true,
    "status": "active",
    "eodhd_name": "Honeywell Aerospace Inc",
-   "sample_rows": 82,
+   "sample_rows": 91,
    "sample_first": "2026-06-15",
-   "sample_last": "2026-10-09"
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "IPG",
@@ -394,8 +517,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Interpublic Group of Companies Inc",
-   "sample_rows": 33,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2491,
+   "sample_first": "2016-01-04",
    "sample_last": "2025-11-26"
   },
   {
@@ -404,15 +527,19 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Juniper Networks Inc",
-   "sample_rows": 0,
-   "sample_note": "no rows"
+   "sample_rows": 2388,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-07-02"
   },
   {
    "ticker": "JWN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Nordstrom Inc"
+   "eodhd_name": "Nordstrom Inc",
+   "sample_rows": 2362,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-05-20"
   },
   {
    "ticker": "K",
@@ -420,8 +547,8 @@
    "listed": true,
    "status": "delisted",
    "eodhd_name": "Kellanova",
-   "sample_rows": 42,
-   "sample_first": "2025-10-13",
+   "sample_rows": 2500,
+   "sample_first": "2016-01-04",
    "sample_last": "2025-12-10"
   },
   {
@@ -429,126 +556,180 @@
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Kansas City Southern"
+   "eodhd_name": "Kansas City Southern",
+   "sample_rows": 1499,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-12-14"
   },
   {
    "ticker": "LEG",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Leggett & Platt Incorporated"
+   "eodhd_name": "Leggett & Platt Incorporated",
+   "sample_rows": 2678,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-08-27"
   },
   {
    "ticker": "LLL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "JX Luxventure Ltd"
+   "eodhd_name": "JX Luxventure Ltd",
+   "sample_rows": 249,
+   "sample_first": "2021-10-13",
+   "sample_last": "2022-10-07"
   },
   {
    "ticker": "LLTC",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Linear Technology Corp"
+   "eodhd_name": "Linear Technology Corp",
+   "sample_rows": 299,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-03-10"
   },
   {
    "ticker": "LVLT",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Level 3 Communications Inc"
+   "eodhd_name": "Level 3 Communications Inc",
+   "sample_rows": 462,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-10-31"
   },
   {
    "ticker": "MJN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Mead Johnson Nutrition CO"
+   "eodhd_name": "Mead Johnson Nutrition CO",
+   "sample_rows": 365,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-06-14"
   },
   {
    "ticker": "MNK",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Mallinckrodt plc"
+   "eodhd_name": "Mallinckrodt plc",
+   "sample_rows": 209,
+   "sample_first": "2022-10-27",
+   "sample_last": "2023-08-28"
   },
   {
    "ticker": "MON",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Monument Circle Acquisition Corp"
+   "eodhd_name": "Monument Circle Acquisition Corp",
+   "sample_rows": 454,
+   "sample_first": "2021-03-16",
+   "sample_last": "2022-12-30"
   },
   {
    "ticker": "MRO",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Marathon Oil Corporation"
+   "eodhd_name": "Marathon Oil Corporation",
+   "sample_rows": 2239,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-11-22"
   },
   {
    "ticker": "MXIM",
    "first_missing_year": "2018",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Maxim Integrated Products Inc"
+   "eodhd_name": "Maxim Integrated Products Inc",
+   "sample_rows": 1422,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-08-25"
   },
   {
    "ticker": "MYL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Viatris Inc"
+   "eodhd_name": "Viatris Inc",
+   "sample_rows": 1230,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-11-18"
   },
   {
    "ticker": "NBL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Noble Energy Inc"
+   "eodhd_name": "Noble Energy Inc",
+   "sample_rows": 1207,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-10-16"
   },
   {
    "ticker": "NFX",
    "first_missing_year": "2017",
    "listed": true,
    "status": "active",
-   "eodhd_name": "Corgi NFLX 2x Daily ETF"
+   "eodhd_name": "Corgi NFLX 2x Daily ETF",
+   "sample_rows": 1072,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "NLSN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Nielsen Holdings PLC"
+   "eodhd_name": "Nielsen Holdings PLC",
+   "sample_rows": 1707,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-10-12"
   },
   {
    "ticker": "PBCT",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "People's United Financial Inc"
+   "eodhd_name": "People's United Financial Inc",
+   "sample_rows": 1575,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-04-04"
   },
   {
    "ticker": "PDCO",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Patterson Companies Inc"
+   "eodhd_name": "Patterson Companies Inc",
+   "sample_rows": 2336,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-04-16"
   },
   {
    "ticker": "PX",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "P10 Inc"
+   "eodhd_name": "P10 Inc",
+   "sample_rows": 1123,
+   "sample_first": "2021-10-21",
+   "sample_last": "2026-04-14"
   },
   {
    "ticker": "PXD",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Pioneer Natural Resources Co"
+   "eodhd_name": "Pioneer Natural Resources Co",
+   "sample_rows": 2097,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-05-02"
   },
   {
    "ticker": "Q",
@@ -556,65 +737,89 @@
    "listed": true,
    "status": "active",
    "eodhd_name": "Qnity Electronics, Inc",
-   "sample_rows": 240,
+   "sample_rows": 249,
    "sample_first": "2025-10-27",
-   "sample_last": "2026-10-09"
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "QRVO",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Qorvo Inc"
+   "eodhd_name": "Qorvo Inc",
+   "sample_rows": 2703,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-10-02"
   },
   {
    "ticker": "RAI",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Reynolds American Inc"
+   "eodhd_name": "Reynolds American Inc",
+   "sample_rows": 392,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-07-24"
   },
   {
    "ticker": "RHT",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Red Hat Inc"
+   "eodhd_name": "Red Hat Inc",
+   "sample_rows": 883,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-07-08"
   },
   {
    "ticker": "RTN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Raytheon Company"
+   "eodhd_name": "Raytheon Company",
+   "sample_rows": 1070,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-04-02"
   },
   {
    "ticker": "SCG",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "SCANA Corporation"
+   "eodhd_name": "SCANA Corporation",
+   "sample_rows": 754,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-12-31"
   },
   {
    "ticker": "SEE",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Sealed Air Corporation"
+   "eodhd_name": "Sealed Air Corporation",
+   "sample_rows": 2581,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-04-09"
   },
   {
    "ticker": "SIVB",
    "first_missing_year": "2018",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "SVB Financial Group"
+   "eodhd_name": "SVB Financial Group",
+   "sample_rows": 1808,
+   "sample_first": "2016-01-04",
+   "sample_last": "2023-03-09"
   },
   {
    "ticker": "SNI",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Scripps Networks Interactive Inc"
+   "eodhd_name": "Scripps Networks Interactive Inc",
+   "sample_rows": 547,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-03-06"
   },
   {
    "ticker": "SOLS",
@@ -622,156 +827,219 @@
    "listed": true,
    "status": "active",
    "eodhd_name": "Solstice Advanced Materials, Inc",
-   "sample_rows": 245,
+   "sample_rows": 254,
    "sample_first": "2025-10-20",
-   "sample_last": "2026-10-09"
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "SPLS",
    "first_missing_year": "2017",
    "listed": true,
    "status": "active",
-   "eodhd_name": "PIMCO US Stocks PLUS Active Bond Exchange Traded Fund"
+   "eodhd_name": "PIMCO US Stocks PLUS Active Bond Exchange Traded Fund",
+   "sample_rows": 193,
+   "sample_first": "2026-01-16",
+   "sample_last": "2026-10-22"
   },
   {
    "ticker": "SRCL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Stericycle Inc"
+   "eodhd_name": "Stericycle Inc",
+   "sample_rows": 2224,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-11-01"
   },
   {
    "ticker": "STJ",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "St. Jude Medical Inc"
+   "eodhd_name": "St. Jude Medical Inc",
+   "sample_rows": 254,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-01-04"
   },
   {
    "ticker": "SWN",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Southwestern Energy Company"
+   "eodhd_name": "Southwestern Energy Company",
+   "sample_rows": 2200,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-09-30"
   },
   {
    "ticker": "TGNA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Tegna Inc"
+   "eodhd_name": "Tegna Inc",
+   "sample_rows": 2568,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-03-20"
   },
   {
    "ticker": "TIF",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Tiffany & Co"
+   "eodhd_name": "Tiffany & Co",
+   "sample_rows": 1263,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-01-07"
   },
   {
    "ticker": "TSS",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Total System Services Inc"
+   "eodhd_name": "Total System Services Inc",
+   "sample_rows": 933,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-09-17"
   },
   {
    "ticker": "TWTR",
    "first_missing_year": "2018",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Twitter Inc"
+   "eodhd_name": "Twitter Inc",
+   "sample_rows": 1718,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-10-27"
   },
   {
    "ticker": "TWX",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Time Warner Inc"
+   "eodhd_name": "Time Warner Inc",
+   "sample_rows": 618,
+   "sample_first": "2016-01-04",
+   "sample_last": "2018-06-15"
   },
   {
    "ticker": "VAR",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Varian Medical Systems Inc"
+   "eodhd_name": "Varian Medical Systems Inc",
+   "sample_rows": 1330,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-04-15"
   },
   {
    "ticker": "VIAB",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Viacom Inc"
+   "eodhd_name": "Viacom Inc",
+   "sample_rows": 988,
+   "sample_first": "2016-01-04",
+   "sample_last": "2019-12-04"
   },
   {
    "ticker": "VIAC",
    "first_missing_year": "2019",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Paramount Global"
+   "eodhd_name": "Paramount Global",
+   "sample_rows": 1613,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-05-27"
   },
   {
    "ticker": "WBA",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Walgreens Boots Alliance Inc"
+   "eodhd_name": "Walgreens Boots Alliance Inc",
+   "sample_rows": 2428,
+   "sample_first": "2016-01-04",
+   "sample_last": "2025-08-28"
   },
   {
    "ticker": "WBD",
    "first_missing_year": "2022",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Warner Bros Discovery Inc"
+   "eodhd_name": "Warner Bros Discovery Inc",
+   "sample_rows": 2704,
+   "sample_first": "2016-01-04",
+   "sample_last": "2026-10-05"
   },
   {
    "ticker": "WCG",
    "first_missing_year": "2018",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "WellCare Health Plans Inc"
+   "eodhd_name": "WellCare Health Plans Inc",
+   "sample_rows": 1021,
+   "sample_first": "2016-01-04",
+   "sample_last": "2020-01-23"
   },
   {
    "ticker": "WFM",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Whole Foods Market Inc"
+   "eodhd_name": "Whole Foods Market Inc",
+   "sample_rows": 416,
+   "sample_first": "2016-01-04",
+   "sample_last": "2017-08-25"
   },
   {
    "ticker": "WRK",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "WestRock Co"
+   "eodhd_name": "WestRock Co",
+   "sample_rows": 2140,
+   "sample_first": "2016-01-04",
+   "sample_last": "2024-07-05"
   },
   {
    "ticker": "WYND",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "WYND"
+   "eodhd_name": "WYND",
+   "sample_rows": 682,
+   "sample_first": "2018-06-01",
+   "sample_last": "2021-02-16"
   },
   {
    "ticker": "XEC",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Cimarex Energy Co"
+   "eodhd_name": "Cimarex Energy Co",
+   "sample_rows": 1449,
+   "sample_first": "2016-01-04",
+   "sample_last": "2021-10-04"
   },
   {
    "ticker": "XL",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "XL Fleet Corp"
+   "eodhd_name": "XL Fleet Corp",
+   "sample_rows": 519,
+   "sample_first": "2020-12-22",
+   "sample_last": "2023-01-13"
   },
   {
    "ticker": "XLNX",
    "first_missing_year": "2017",
    "listed": true,
    "status": "delisted",
-   "eodhd_name": "Xilinx Inc"
+   "eodhd_name": "Xilinx Inc",
+   "sample_rows": 1540,
+   "sample_first": "2016-01-04",
+   "sample_last": "2022-02-11"
   }
  ]
 }
