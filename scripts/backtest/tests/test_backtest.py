@@ -195,4 +195,22 @@ eq, tk = E.portfolio(tr, {"X": {d: 110.0 for d in cal}}, cal, cal[0], cal[-1], c
 exp = 100_000 - 100 * 100 * 1.001 * 1.0003 + 100 * 120 * 0.999 * 0.9997
 check("R5 idle switch costs charged both ways", abs(eq.iloc[-1] - exp) < 1e-6, (eq.iloc[-1], exp))
 
+# ── 11. Round 6: buy back after a sale when the stock breaks above its high since the sale
+n = 12
+o = [99, 100, 101, 93, 92, 93, 95, 97, 99, 104, 106, 107]
+h = [99, 102, 102, 94, 93, 95, 96, 98, 100, 105, 107, 108]
+l = [98, 99, 92, 91, 91, 92, 94, 96, 98, 103, 105, 106]
+c = [99, 101, 92.4, 92, 92.5, 94, 95.5, 97.5, 99.5, 104.5, 106.5, 107.5]
+v = [1e6] * 9 + [2e6, 1e6, 1e6]
+ind = ind4(n, s50=90.0)
+P6 = dict(E.BASE, stop="fixed", reentry=True)
+t = E.simulate_trades("R6", bars(o, h, l, c, v), ind, sig(n), P6, "2000-01-01", "2100-01-01")
+# trade 1: buy day 1 open 100, stop 90; day 2 closes 92.4 (−7.6%) → 7.5% rule sells day 3 open (93).
+# high since the sale (days 3–8) = 100; day 9 closes 104.5 > 100 on 2× volume, above the 50-day → re-buy day 10 open (106)
+# stop = max(lowest low since the sale 91 × 0.995, 104.5 × 0.92) = 96.14
+check("R6 re-entry after a recovery breakout", len(t) == 2 and t[1]["setup"] == "REENTRY" and t[1]["entry"] == 106
+      and abs(t[1]["stop"] - 104.5 * 0.92) < 1e-9, t)
+t = E.simulate_trades("R6b", bars(o, h, l, c, v), ind, sig(n), dict(P6, reentry=False), "2000-01-01", "2100-01-01")
+check("R6 no re-entry when the option is off", len(t) == 1, t)
+
 print(f"all {len(PASS)} planted tests passed")
