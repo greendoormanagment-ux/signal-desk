@@ -34,7 +34,7 @@ Key sources: O'Neil *How to Make Money in Stocks*; Minervini *Trade Like a Stock
 **Clenow Stocks on the Move** — rank by 90-day exponential-regression slope (annualized) × R² · buy only when S&P > 200-day · stock > 100-day, no 15%+ gap in 90 days · size by ATR (volatility).
 Status: queued for the November backtest. None changes live rules until it passes.
 
-## 4. What the backtests have shown so far (Rounds 1–6, Oct 2026)
+## 4. What the backtests have shown so far (Rounds 1–7, Oct 2026)
 - Free price data hides failed/delisted companies → results look too good (survivorship bias). Fair tests need delisted stocks (EODHD, Gate 3).
 - On S&P 500 stocks with realistic next-day fills and costs, 2017–2025: **momentum rotation ≈ 8%/yr vs SPY 12.7%** (−45% max drawdown); **pullback system ≈ 8%/yr**, 62% winners but tiny gains per trade. Neither showed a robust edge vs SPY.
 - The live app's own leader-breakout rules have **not** had a fair test yet — that's the Gate 3 / November job.
@@ -53,15 +53,19 @@ Status: queued for the November backtest. None changes live rules until it passe
   - **Today's live rules:** −1.6%/yr in 2005–16 (−6.9 vs SPY) and −4.8 vs SPY in 2017–25.
   - **Buy-back after a sale hurt** on the real data, in both versions and with every exit: −1.3 to −3.1 pts/yr. Stocks that broke down tended to keep breaking down.
   - Free-data winners are not trustworthy: the same rules swung ~4 pts/yr between two free runs on refreshed data.
-- **Where the evidence points (Rounds 4–6 agree):**
-  1. The A2 trail is the worst exit, and the original stop alone is the best.
-  2. The trend template is the best entry filter.
-  3. "S&P above its 200-day" protects in crashes.
+- **10/22 re-check on REPAIRED data** (Round 7 found unadjusted splits, bad prints and spliced tickers in 1 of 6 EODHD files; `backtest/round6-clean-latest.md`, price rules only): the 'best' combination above **dropped from +6.1 to +0.2 pts/yr** in 2005–16, so part of its edge was bad data. One combination passed the bar: **live price rules + breakouts only + original stop + half size when the market isn't UPTREND + standard buy-back** (2017–25: 17.4%/yr vs SPY 14.9%, 92% of resamples ahead, DD −31.9% vs −33.7%). Its no-buy-back twin was only +0.8 in 2005–16, and buy-back hurt on average, so treat it as a lead to paper-trade, not proof. Today's rules: −8.2 / −7.9 vs SPY.
+- **Round 7 (10/22): thinkorswim studies + Fibonacci** (`backtest/round7-latest.md`). 29 studies at default settings, any stock and uptrend-only, were scored against a random stock bought the same day. **1 of 74 passed the 2005–16 screen** (Ichimoku cloud break, uptrend: +0.4% per 3 months), and it **reversed in 2017–25**. **Fibonacci levels did no better than made-up levels** (38.2/50/61.8/78.6 vs 30/44/56/70; Fib was slightly worse). Breakout-style studies (Donchian, Bollinger and Keltner breaks) lagged random stocks. Indicators don't pick stocks; trend, exits and market exposure are what move results.
+- **Where the evidence points (Rounds 4–7 agree):** (1) breakouts only beats breakouts + pullbacks;
+  (2) the A2 trail is the worst exit, and the original stop alone is the best;
+  (3) a market rule (S&P above its 200-day, or half size when the gate isn't UPTREND) protects in crashes;
+  (4) entry filters (trend template, EPS) and chart studies add little once those three are in place.
 
   No version beats SPY in a strong bull market. **Signal Desk is a risk manager and discipline tool, not a market-beater.** The honest setup is a core in SPY and Signal Desk as a smaller satellite whose value shows up mostly in bad markets.
 - **Private EODHD copy:** 2003–2026 daily prices for 979 of 993 S&P members since 2004, delisted names included. It is kept privately offline, not in this repo (EODHD's licence forbids republishing). Future rounds can use it with no subscription.
 
 ## 5. Lessons learned (add after every review — newest first)
+- **10/22 · Check the data before believing a result.** 1 in 6 EODHD files had unadjusted splits, bad prints or spliced tickers. Repairing them erased most of Round 6's 'best' edge. Every new data source gets a jump audit first.
+- **10/22 · Chart studies and Fibonacci don't pick stocks.** Across 21 years and ~1.5M signals, RSI, MACD, Bollinger, Ichimoku, Fibonacci and the rest did no better than a random stock bought the same day. Use the chart for trend, entry timing and the stop, not as a reason to buy.
 - **10/22 · Free-data winners lie.** The free-data Round 6 winner lost to SPY on the EODHD data with delisted stocks, and free results moved ~4 pts/yr between two runs. Never act on a free-data result alone.
 - **10/22 · Buying back a stock you sold usually doesn't pay.** Both buy-back versions (above the high since the sale; early 50-day reclaim) cost 1–3 pts/yr on 21 years of real data. After a stop-out, wait for a brand-new setup instead.
 - **10/22 · Fewer, simpler rules won.** The best real-data combination is 4 plain rules: trend template, breakouts only, original stop, and S&P above its 200-day. Stacking more never helped in any round.
@@ -198,9 +202,9 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 - Scorecard (§13): hit rate by confidence level.
 - Should paper trades switch to "original stop only" (no trail) to test the Round 5 finding live?
 - ~~EODHD run~~ Answered 10/22 (§4): nothing beats SPY in 2017–25. Best = trend template + breakouts only + original stop + S&P above 200-day (≈ SPY in 2017–25, +6 pts/yr in 2005–16).
-- After 10/29: switch to that 4-rule version, one change at a time? Proposed order: (1) original stop instead of the A2 trail; (2) S&P-above-200-day gate; (3) trend template; (4) breakouts only. Log each with paper trades first.
+- After 10/29: change one rule at a time, with paper trades first. Proposed order: (1) original stop instead of the A2 trail; (2) breakouts only (drop pullback BUYs); (3) a market rule (half size when not UPTREND, or S&P above 200-day). Optional, as a paper test: buy-back after a stop-out.
 - Sizing: what share of the money goes to the Signal Desk satellite vs a SPY core?
 
 ## 15. Where things are
-App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` (Round 6 real data: `backtest/round6-latest.md`) · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
+App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` (real data: `backtest/round6-latest.md`, repaired re-check `round6-clean-latest.md`, studies + Fibonacci `round7-latest.md`) · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
 _This file is public — never put account values, keys, or personal details here._
