@@ -1,7 +1,7 @@
 # Signal Desk Playbook
 
 _The one page Claude reads before analyzing any stock or position for Tony. Rules decide; evidence ranks; lessons accumulate._
-_Last updated: Oct 20, 2026 · app v2.12 · 30-day live test 9/29 → 10/29 (rules frozen)_
+_Last updated: Oct 22, 2026 · app v2.14 · 30-day live test 9/29 → 10/29 (rules frozen)_
 
 ## 1. How to analyze a stock (every time, in this order)
 1. **Market regime first.** SPY/QQQ vs 50-day + distribution days (app's gate: UPTREND / PRESSURE / CORRECTION). Also note: S&P vs its 200-day; failed index breakout (closed back under a high it just broke); leaders vs average stock (SPY vs RSP). PRESSURE or worse → new buys are **paper only**.
@@ -34,13 +34,26 @@ Key sources: O'Neil *How to Make Money in Stocks*; Minervini *Trade Like a Stock
 **Clenow Stocks on the Move** — rank by 90-day exponential-regression slope (annualized) × R² · buy only when S&P > 200-day · stock > 100-day, no 15%+ gap in 90 days · size by ATR (volatility).
 Status: queued for the November backtest. None changes live rules until it passes.
 
-## 4. What the backtests have shown so far (Rounds 1–3, Oct 2026)
+## 4. What the backtests have shown so far (Rounds 1–5, Oct 2026)
 - Free price data hides failed/delisted companies → results look too good (survivorship bias). Fair tests need delisted stocks (EODHD, Gate 3).
 - On S&P 500 stocks with realistic next-day fills and costs, 2017–2025: **momentum rotation ≈ 8%/yr vs SPY 12.7%** (−45% max drawdown); **pullback system ≈ 8%/yr**, 62% winners but tiny gains per trade. Neither showed a robust edge vs SPY.
 - The live app's own leader-breakout rules have **not** had a fair test yet — that's the Gate 3 / November job.
 - Pass bar for any change: tune on 2005–2016, judge on 2017–2025; higher average gain per trade after costs, drawdown no worse, works on unseen years. Beating SPY is not required. Add one change at a time.
+- **Round 4 (10/20, free data, S&P point-in-time; tune 2017–21, judge 2022–25):** 17 one-at-a-time changes to the live rules: sell signals, v3 leadership gates, regime sizing, breakouts only, trend template. **None passed.** Automatic sell signals cut winners more than they saved, and all four together ≈ 0%/yr. Blocking every buy in PRESSURE wrecked returns. Regime sizing trimmed drawdown slightly but cost return. The trend template was the best entry filter (avg R 0.10 → 0.18 in the judge years) but failed on drawdown. The v3 "all layers" package did *worse*.
+- **Round 5 (10/22, same data):** can it beat SPY?
+  - **Cash drag is not the gap.** The system is in stocks ~85% of the time, so idle cash in SPY added only ~1 pt/yr.
+  - **Letting winners run is the biggest lever.** Original stop only, with no trail, gave judge 14.0%/yr vs SPY 9.3%, and was the best stock version in 2026.
+  - **Nothing is consistent.** Every version lagged SPY by 3–12 pts/yr in 2017–21 (a mega-cap-led bull market). The best combination (trend template + original stop) beat SPY in 79% of 2022–25 resamples but lagged by 8 pts/yr in 2017–21.
+  - Round 1's combined breakout + earnings-gap + pullback system was **survivorship**: only 2–3.5%/yr on the fair list.
+  - **No version beats SPY yet.**
+- **Carried to the EODHD test (2005–16 tune incl. 2008, 2017–25 judge, delisted stocks included):** (1) live entries + original stop only; (2) trend template + original stop only. If neither passes, Signal Desk is a risk manager and discipline tool, not a stock picker, and the core of the money tracks the index.
 
 ## 5. Lessons learned (add after every review — newest first)
+- **10/22 · Exits matter more than entries.** Two backtest rounds agree: the tight A2 trail sells winners too early; holding to the original stop (or a 50-day exit) earned far more per trade. Ask "when do I sell?" before "what do I buy?"
+- **10/22 · More rules ≠ better.** Stacking regime + leadership + EPS/sales + sell signals (v3 package) did worse than any single change. Add one change at a time, and only what passes.
+- **10/21 · When Finviz and Signal Desk disagree on EPS, check before trusting either.** ABNB passed Finviz "EPS Q/Q > 25%" while SEC data showed +4%. The AI write-up also called last quarter "Q3" before Q3 was reported (known quarter-label bug).
+- **10/21 · Pre-earnings windows close fast.** OSCR and AVPT were 16 days from earnings: one day to break out before the 14-day rule blocked them. Check the window first; otherwise plan the post-earnings setup (§8).
+- **10/21 · A BUY can still be a no.** NVDA rated BUY (pullback) while below a falling 50-day, with flat RS, in PRESSURE, and as a 3rd AI-infrastructure trade. The trend template would reject it. Log it as Paper and follow the Playbook, not the score.
 - **10/17 · Leader rotation.** S&P −2% while equal-weight RSP +0.5%; last spring's top-100 stocks −5%, bottom-100 +4% (DELL, HPE −20%+, PLTR −11%). When SPY lags RSP and the strongest stocks fall hardest, treat it as a momentum-crash warning: no new real buys, keep stops, don't add to the hot theme.
 - **10/17 · Theme beats sector.** MRVL (Technology) and PWR (Industrials) fell together on AI-capex worries. Check themes, not just sector labels (Fix #90).
 - **10/16 · Sharp drops aren't pullbacks.** DDOG and PLTR rated BUY after −7% days because the pullback rule only checks distance to the 50-day. A −4%+ day or −10% over 5 days on heavy volume = selling, not an orderly pullback (v2.11 warning; Fix #31a–e).
@@ -139,8 +152,8 @@ Overall read: ACCUMULATION / leaning / neutral / leaning distribution / DISTRIBU
 | Deep or sharp "pullback" bought (really a correction / selling) | 3 | MRVL 10/15 (−26% from high), DDOG & PLTR 10/16 (−7% days) |
 | Theme crowding | 1 | MRVL + PWR 10/17 (AI capex) |
 | Buying into a weak / rotating market | 1 | 10/17 leader rotation |
-| Earnings timing | 1 | PWR 10/15 |
-| Missing / lagging data | 2 | CVE foreign filer 10/15; KNSA SEC lag 10/20 |
+| Earnings timing | 3 | PWR 10/15; OSCR & AVPT 10/21 (16 days out) |
+| Missing / lagging data | 3 | CVE foreign filer 10/15; KNSA SEC lag 10/20; ABNB Finviz vs SEC EPS 10/21 |
 | Logging bug | 1 | Entry Price leak (v2.10.1) |
 | Chased extended | 0 | — |
 
@@ -152,6 +165,12 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 | Date | Ticker | Call | Conf. | Price | Why (short) | 5d | 10d | 20d |
 |---|---|---|---|---|---|---|---|---|
 | 10/20 | KNSA | Hold into 10/27 earnings, stop unchanged | 60% | $83.02 | RS +37, ACCUMULATION footprints, pocket pivot 10/19; Q2 EPS +30%, revenue +55% | | | |
+| 10/20 | OSCR | Watch — no buy before 11/5 earnings unless it breaks out 10/21 | 65% | $33.66 | Pivot $35.01; EPS swing may not repeat (next qtr est. loss); footprints mixed | | | |
+| 10/20 | AVPT | Pass (paper only on a 10/21 breakout) | 60% | $15.23 | EPS jump likely one-time; footprints lean distribution; short interest +13% | | | |
+| 10/20 | NRIX | Pass | 70% | $26.10 | No-man's land; biggest-volume day was a post-earnings DOWN day; 9.9 days to cover | | | |
+| 10/20 | ABNB | Pass | 65% | $176.94 | EPS +4% fails the rule; weakest setup (pullback); earnings in 16 days | | | |
+| 10/21 | KNSA | Hold full into earnings (cushion +9.8% > est. move 7.9%); stop $75.76 | 65% | $83.17 | Confirmed breakout 10/20 on 2.4× volume; ACCUMULATION; 0 sell warnings except market | | | |
+| 10/21 | NVDA | No real buy (paper only) | 65% | $216.47 | Below a falling 50-day, RS flat, PRESSURE, 3rd AI-infrastructure trade + concentration with existing holdings | | | |
 
 ## 14. Open questions for the 10/29 review
 - Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
@@ -161,6 +180,8 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 - Did ACCUMULATION vs DISTRIBUTION footprint reads predict 5/10-day returns?
 - When Claude's market read disagreed with the rules gate (e.g. 10/20: Claude UPTREND, rules PRESSURE), who was right?
 - Scorecard (§13): hit rate by confidence level.
+- Should paper trades switch to "original stop only" (no trail) to test the Round 5 finding live?
+- EODHD run: does either carried candidate (§4) beat SPY on 2017–2025 with delisted stocks included?
 
 ## 15. Where things are
 App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
