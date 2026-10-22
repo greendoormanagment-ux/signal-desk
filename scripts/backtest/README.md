@@ -53,3 +53,10 @@ The same workflow runs these. Only the `.md` reports are committed, so the repo 
 - `run_round5.py` + `report_round5.py`: 12 variants (idle SPY, exits that let winners run, trend template, and Round 1's combined system) on the point-in-time S&P 500.
 - The pass bar was set before the run: beat SPY in BOTH tune and judge, ≥70% of bootstrap resamples above zero, and a drawdown no worse than SPY's + 5 pts.
 - Actions → "Backtest Round 5 (run by hand)", data = `free` or `eodhd`. Planted tests: 25.
+
+## Round 6 (Oct 22 2026): best small combination + buy back after a sale
+
+- Goal: find the best SMALL set of rules, not add more. Five blocks: entry filter (4) × setups (2) × exit (4) × market rule (3) × re-entry (2) = 192 combinations. Idle money sits in SPY in all of them.
+- `engine.py`: new `reentry` option (off by default). After any sale, the stock can be bought back within 40 sessions when it closes above its high since the sale, above the 50-day, on 1.2× volume, not rated SELL, and the market is not in CORRECTION. The stop is the low since the sale (or 8% max), and there are at most 2 buy-backs in a row.
+- `run_round6.py` + `report_round6.py`: every combination is scored on the TUNE years only, and the judge years stay sealed. Only the top 3 (ties go to fewer rule changes, then steadier sub-periods) are opened on JUDGE. The pass bar is raised for multiple testing: beat SPY in tune and judge, bootstrap ≥ 80%, and DD no worse than SPY's + 5.
+- Actions → "Backtest Round 6 (run by hand)", data = `free` or `eodhd`. Planted tests: 27.
