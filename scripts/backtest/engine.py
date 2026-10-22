@@ -25,7 +25,8 @@ BASE = dict(name="base (live rules v2.9.7)", vol_need=1.4, pb_lo=-3.0, pb_hi=3.0
             max_ext=5.0, min_rsrank=None, trend_template=False, mkt_mode="live",
             # Round 4 (v2.13 sell signals, v3 leadership gates). All OFF by default so rounds 1-3 reproduce exactly.
             near_high=None, nosec_pass=False,
-            exit_ma50vol=False, exit_climax=False, exit_failbo=False, hold8w=False)
+            exit_ma50vol=False, exit_climax=False, exit_failbo=False, hold8w=False,
+            reentry=False)                       # Round 6: buy back a sold stock when it breaks above its high since the sale
 
 
 # ───────────────────────── data ─────────────────────────
@@ -338,12 +339,27 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
     avgv = ind.get("avgv", np.full(len(df), np.nan))
     rating, stop0, setup = sig.rating.to_numpy(), sig.stop.to_numpy(), sig.setup.to_numpy()
     score = sig.score.to_numpy()
+    mkt_arr = sig.market.to_numpy() if "market" in sig else np.full(len(df), "UPTREND")
     trades, i, n = [], 0, len(df)
+    # Round 6 re-entry: after any exit, for 40 sessions, buy back on a close above the highest high since the sale,
+    # on >= 1.2x average volume, above the 50-day, not rated SELL, market not in CORRECTION. Stop = low since the sale
+    # (never more than 8% under). At most 2 re-entries in a row; a normal BUY resets the count.
+    re_until, re_hi, re_lo, re_n = -1, 0.0, 0.0, 0
     while i < n - 1:
-        if not (start <= dates[i] <= end and rating[i] == "BUY"):
+        is_re = False
+        if P.get("reentry") and i <= re_until and re_n < 2 and start <= dates[i] <= end:
+            if (c[i] > re_hi and c[i] > s50[i] and avgv[i] == avgv[i] and v[i] >= 1.2 * avgv[i]
+                    and rating[i] not in ("SELL", "NA") and mkt_arr[i] != "CORRECTION"):
+                is_re = True
+            else:
+                re_hi = max(re_hi, h[i]); re_lo = min(re_lo, l[i])
+        if not is_re and not (start <= dates[i] <= end and rating[i] == "BUY"):
             i += 1; continue
-        e_i = i + 1; ep = o[e_i]; orig = stop0[i]
+        e_i = i + 1; ep = o[e_i]
+        orig = max(re_lo * 0.995, c[i] * 0.92) if is_re else stop0[i]
         if not (ep > orig > 0):
+            if is_re:
+                re_hi = max(re_hi, h[i]); re_lo = min(re_lo, l[i])
             i += 1; continue
         R = ep - orig; stp = orig; hi = h[e_i]; mae = mfe = 0.0
         held8 = False; best5 = -1e9                       # Round 4: O'Neil 8-week hold flag · best 5-day gain so far
@@ -400,8 +416,10 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
             x_i, xp, why = n - 1, c[n - 1], "open at end"
         trades.append({"sym": sym, "signal": dates[i], "entry_date": dates[e_i], "entry": ep, "stop": orig,
                        "exit_date": dates[x_i], "exit": xp, "why": why, "ret": (xp / ep - 1) * 100,
-                       "R": (xp - ep) / R, "days": x_i - e_i, "mae_R": mae, "mfe_R": mfe, "setup": setup[i],
+                       "R": (xp - ep) / R, "days": x_i - e_i, "mae_R": mae, "mfe_R": mfe, "setup": "REENTRY" if is_re else setup[i],
                        "score": score[i], "market": sig.market.iat[i]})
+        re_until, re_hi, re_lo = x_i + 40, h[x_i], l[x_i]
+        re_n = re_n + 1 if is_re else 0
         i = x_i + 1
     return trades
 
