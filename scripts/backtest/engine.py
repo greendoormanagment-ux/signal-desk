@@ -26,7 +26,7 @@ BASE = dict(name="base (live rules v2.9.7)", vol_need=1.4, pb_lo=-3.0, pb_hi=3.0
             # Round 4 (v2.13 sell signals, v3 leadership gates). All OFF by default so rounds 1-3 reproduce exactly.
             near_high=None, nosec_pass=False,
             exit_ma50vol=False, exit_climax=False, exit_failbo=False, hold8w=False,
-            reentry=False)                       # Round 6: buy back a sold stock when it breaks above its high since the sale
+            reentry=False)                       # Round 6: buy back a sold stock: True = above its high since the sale · "early" = 50-day reclaim + 10-day high
 
 
 # ───────────────────────── data ─────────────────────────
@@ -344,11 +344,14 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
     # Round 6 re-entry: after any exit, for 40 sessions, buy back on a close above the highest high since the sale,
     # on >= 1.2x average volume, above the 50-day, not rated SELL, market not in CORRECTION. Stop = low since the sale
     # (never more than 8% under). At most 2 re-entries in a row; a normal BUY resets the count.
-    re_until, re_hi, re_lo, re_n = -1, 0.0, 0.0, 0
+    re_until, re_hi, re_lo, re_n, re_sold = -1, 0.0, 0.0, 0, -1
     while i < n - 1:
         is_re = False
         if P.get("reentry") and i <= re_until and re_n < 2 and start <= dates[i] <= end:
-            if (c[i] > re_hi and c[i] > s50[i] and avgv[i] == avgv[i] and v[i] >= 1.2 * avgv[i]
+            # "early" (Round 6b): don't wait for the sale-day high — buy back once the slide ends: a close back above
+            # the 50-day that also tops the highest high of the prior 10 sessions (breaks the short downtrend), 3+ sessions after the sale
+            lvl = (max(h[i - 10:i]) if P.get("reentry") == "early" and i >= 10 and i - re_sold >= 3 else re_hi)
+            if (c[i] > lvl and c[i] > s50[i] and avgv[i] == avgv[i] and v[i] >= 1.2 * avgv[i]
                     and rating[i] not in ("SELL", "NA") and mkt_arr[i] != "CORRECTION"):
                 is_re = True
             else:
@@ -418,7 +421,7 @@ def simulate_trades(sym, df, ind, sig, P, start, end):
                        "exit_date": dates[x_i], "exit": xp, "why": why, "ret": (xp / ep - 1) * 100,
                        "R": (xp - ep) / R, "days": x_i - e_i, "mae_R": mae, "mfe_R": mfe, "setup": "REENTRY" if is_re else setup[i],
                        "score": score[i], "market": sig.market.iat[i]})
-        re_until, re_hi, re_lo = x_i + 40, h[x_i], l[x_i]
+        re_until, re_hi, re_lo, re_sold = x_i + 40, h[x_i], l[x_i], x_i
         re_n = re_n + 1 if is_re else 0
         i = x_i + 1
     return trades
