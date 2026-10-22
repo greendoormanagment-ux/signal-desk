@@ -213,4 +213,19 @@ check("R6 re-entry after a recovery breakout", len(t) == 2 and t[1]["setup"] == 
 t = E.simulate_trades("R6b", bars(o, h, l, c, v), ind, sig(n), dict(P6, reentry=False), "2000-01-01", "2100-01-01")
 check("R6 no re-entry when the option is off", len(t) == 1, t)
 
+# ── 12. Round 6b: EARLY buy-back — the TSLA case: sold, kept sliding, then turned up well below the sale price
+n = 20
+o = [99, 100, 101, 93] + [92 - k for k in range(11)] + [83, 86, 89, 90, 91]
+h = [99, 102, 102, 94] + [93 - k for k in range(11)] + [84, 87, 91, 91, 92]
+l = [98, 99, 92, 91] + [90 - k for k in range(11)] + [80, 85, 88, 89, 90]
+c = [99, 101, 92.4, 92] + [91 - k for k in range(11)] + [82, 86.5, 90.5, 90.5, 91.5]
+v = [1e6] * 17 + [2e6, 1e6, 1e6]
+ind = ind4(n, s50=85.0)
+t = E.simulate_trades("R6c", bars(o, h, l, c, v), ind, sig(n), dict(E.BASE, stop="fixed", reentry="early"), "2000-01-01", "2100-01-01")
+# sold day 3 open (93); slide to a low of 80 (day 15). Day 17 closes 90.5: above the 50-day (85), above the highest high of
+# days 7-16 (90 on day 7), 2x volume → early buy-back at day 18 open (90), below the sale-day high (94)
+check("R6b early buy-back below the sale price", len(t) == 2 and t[1]["setup"] == "REENTRY" and t[1]["entry"] == 90, t)
+t = E.simulate_trades("R6d", bars(o, h, l, c, v), ind, sig(n), dict(E.BASE, stop="fixed", reentry=True), "2000-01-01", "2100-01-01")
+check("R6b standard buy-back waits for the sale-day high", len(t) == 1, t)
+
 print(f"all {len(PASS)} planted tests passed")
