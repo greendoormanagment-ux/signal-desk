@@ -228,4 +228,22 @@ check("R6b early buy-back below the sale price", len(t) == 2 and t[1]["setup"] =
 t = E.simulate_trades("R6d", bars(o, h, l, c, v), ind, sig(n), dict(E.BASE, stop="fixed", reentry=True), "2000-01-01", "2100-01-01")
 check("R6b standard buy-back waits for the sale-day high", len(t) == 1, t)
 
+# ── 13. Round 7 studies: indicator math and the Fibonacci rule, checked by hand
+import studies as ST
+check("R7 RSI of a steady climb is 100", ST.rsi(np.arange(1, 40.0))[-1] == 100.0)
+# RSI(14) with alternating +1 / -1 moves → average gain = average loss → 50
+alt = 100 + np.cumsum(np.tile([1.0, -1.0], 30))
+check("R7 RSI of equal ups and downs is 50", abs(ST.rsi(alt)[-1] - 50) < 3.6, ST.rsi(alt)[-1])
+check("R7 cross_up fires only on the crossing day", list(np.where(ST.cross_up(np.array([1, 2, 3, 2, 4.0]), 2.5))[0]) == [2, 4])
+check("R7 first() keeps only the first day of a state", list(np.where(ST.first(np.array([0, 1, 1, 0, 1], bool)))[0]) == [1, 4])
+# Fibonacci: 100 → 130 swing, pullback low 118.6 (= 38% of the 30-point move), turn-up day 67 closes 119.0 > prior high
+n = 120
+fc = np.r_[np.full(40, 100.0), np.linspace(100, 130, 21)[1:], np.linspace(130, 118.6, 8)[1:], [119.0, 121.0], np.full(51, 121.0)][:n]
+fh, fl = fc * 1.002, fc * 0.998
+fr = ST.fib_signals(fh, fl, fc, {**ST.FIB_LEVELS, **ST.FAKE_LEVELS})
+check("R7 Fibonacci 38.2% fires on the turn-up day only", list(np.where(fr["fib 38.2%"][0])[0]) == [67]
+      and not any(fr[k][0].any() for k in fr if k != "fib 38.2%"), {k: np.where(v[0])[0] for k, v in fr.items()})
+check("R7 Fibonacci stop sits just past the next level", abs(fr["fib 38.2%"][1][67] - (130.26 - 0.462 * (130.26 - 99.8))) < 0.05,
+      fr["fib 38.2%"][1][67])
+
 print(f"all {len(PASS)} planted tests passed")
