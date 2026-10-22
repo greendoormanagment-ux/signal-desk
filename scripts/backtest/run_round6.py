@@ -1,11 +1,12 @@
 """Round 6 · find the best SMALL combination of rules (not the most rules) — without fooling ourselves.
 
-Five building blocks, 2-4 choices each → 192 combinations of 2-5 rules:
+Five building blocks, 2-4 choices each → 288 combinations of 2-5 rules:
   entry filter : live rules · trend template · leaders (RS top 20% + within 15% of high) · EPS & sales
   setup        : breakouts + pullbacks · breakouts only
   exit         : A2 trail · original stop only · 50-day exit · original stop + climax sell
   market       : live gate · half size when the gate isn't UPTREND · only buy when the S&P is above its 200-day
-  re-entry     : off · buy back after a sale on a close above the high since the sale (Round 6 engine option)
+  re-entry     : off · buy back on a close above the high since the sale · EARLY: buy back on a 50-day reclaim that tops
+                 the prior 10-day high (catches the turn below the sale price; added after the first run)
 Idle money sits in SPY in every combination (Round 5: small help, never hurt).
 
 Protocol (set BEFORE the run, to avoid finding a lucky combination):
@@ -14,7 +15,7 @@ Protocol (set BEFORE the run, to avoid finding a lucky combination):
   2. Eligible: tune max drawdown no worse than SPY's + 5 pts. Ties (within 0.5 pt): fewer rules, then steadier
      sub-period results.
   3. Only the TOP 3 are opened on the JUDGE years (10 random-order runs + block bootstrap).
-  4. Pass bar is raised for having searched 192 combinations: beat SPY in tune AND judge, ≥ 80% of judge bootstrap
+  4. Pass bar is raised for having searched 288 combinations: beat SPY in tune AND judge, ≥ 80% of judge bootstrap
      resamples above zero, judge drawdown no worse than SPY's + 5 pts.
 
 Usage: python run_round6.py PRICE_DIR SEC_DIR OUT_DIR MEMBERS_CSV [EXTRA_PRICE_DIR] [AUDIT_DIR]
@@ -31,7 +32,8 @@ SETUP = {"breakouts + pullbacks": {}, "breakouts only": dict(breakout_only=True)
 EXIT = {"A2 trail": {}, "original stop": dict(stop="fixed"), "50-day exit": dict(stop="ma50"),
         "original stop + climax sell": dict(stop="fixed", exit_climax=True)}
 MARKET = {"live gate": ({}, False), "half size if not UPTREND": ({}, True), "S&P above 200-day": (dict(mkt_mode="spy200"), False)}
-REENTRY = {"no re-entry": {}, "re-entry": dict(reentry=True)}
+REENTRY = {"no re-entry": {}, "re-entry": dict(reentry=True), "early re-entry": dict(reentry="early")}
+NC = 4 * 2 * 4 * 3 * 3
 DEFAULTS = ("live rules", "breakouts + pullbacks", "A2 trail", "live gate", "no re-entry")
 ENTRY_KEYS = ("vol_need", "pb_lo", "pb_hi", "pb_need_rising", "pb_need_low_vol", "block_pressure", "need_rs", "eps_min", "rev_min",
               "earn_days", "breakout_only", "pullback_only", "max_ext", "min_rsrank", "trend_template", "mkt_mode", "near_high", "nosec_pass")
@@ -122,7 +124,7 @@ def main(pc, sc, out, members_csv, extra=None, audit_dir=None):
                                            "reentries": sum(1 for t in taken if t.get("setup") == "REENTRY")}})
             n += 1
             if n % 12 == 0:
-                print(f"{n}/192 combos scored on tune ({time.time()-t0:.0f}s)", flush=True)
+                print(f"{n}/{NC} combos scored on tune ({time.time()-t0:.0f}s)", flush=True)
         if mk_name != "half size if not UPTREND":
             del sigs
         # drop trades no longer needed (keyed by entry/setup/market); keep memory flat
@@ -136,7 +138,7 @@ def main(pc, sc, out, members_csv, extra=None, audit_dir=None):
     res["beat_spy_in_tune"] = sum(1 for c in res["combos"] if c["tune"]["excess_median"] > 0)
     top = ok[:3]
     base = next(c for c in res["combos"] if (c["entry"], c["setup"], c["exit"], c["market"], c["reentry"]) == DEFAULTS)
-    print(f"tune done: {res['beat_spy_in_tune']}/192 beat SPY in tune · opening the judge period for the top 3 + the live baseline", flush=True)
+    print(f"tune done: {res['beat_spy_in_tune']}/{NC} beat SPY in tune · opening the judge period for the top 3 + the live baseline", flush=True)
     # open the JUDGE period: top 3 + the live baseline (for reference only)
     spy_dd_j = res["spy"]["judge"].get("max_dd_%") or -100
     for c in top + [base]:
