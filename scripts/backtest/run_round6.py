@@ -59,6 +59,9 @@ def main(pc, sc, out, members_csv, extra=None, audit_dir=None):
     if audit_dir:
         prices = E.apply_corrections(prices, os.path.join(audit_dir, "corrections.json"))
     members = load_members(members_csv)
+    if os.environ.get("R6_CLEAN"):                       # Round 7 data repair (splits, bad prints, spliced tickers)
+        import data_clean as DC
+        prices = DC.clean_all(prices, members)[0]
     spy, qqq = prices.pop("SPY"), prices.pop("QQQ"); prices.pop("RSP", None)
     long_data = spy.date.iat[0] <= "2004-06-30"
     TUNE, JUDGE = (("2005-01-01", "2016-12-31"), ("2017-01-01", "2025-12-31")) if long_data else \
