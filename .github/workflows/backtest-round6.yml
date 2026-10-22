@@ -1,6 +1,6 @@
 name: Backtest Round 6 (run by hand)
 
-# Round 6: search 192 small combinations of rules (entry · setup · exit · market · buy-back after a sale), choose on tune years only, judge the top 3.
+# Round 6: search 288 small combinations of rules (entry · setup · exit · market · buy-back off/standard/early), choose on tune years only, judge the top 3.
 #   data = free  → Yahoo prices since ~2016 (failed companies missing; a PREVIEW). Writes backtest/round6-free-latest.md
 #   data = eodhd → EODHD prices since 2003 INCLUDING delisted companies (paid month + EODHD_KEY secret).
 #                  Tune 2005-2016, judge 2017-2025. Writes backtest/round6-latest.md
