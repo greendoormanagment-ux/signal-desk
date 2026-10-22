@@ -11,10 +11,12 @@ L = [f"# Round 6 — best small combination of rules ({R['asOf']})", "",
      "idle money in SPY · signals at the close, filled next open.",
      f"**Periods:** TUNE {R['tune'][0]} → {R['tune'][1]} (used to choose) · JUDGE {R['judge'][0]} → {R['judge'][1]} "
      "(opened only for the top 3) · 2026 shown alone.", "",
-     "**Search:** 4 entry filters × 2 setup choices × 4 exits × 3 market rules × re-entry on/off = 192 combinations. "
+     f"**Search:** 4 entry filters × 2 setup choices × 4 exits × 3 market rules × re-entry (off / standard / early) = {len(R['combos'])} combinations. "
      "*Re-entry* = after any sale, buy back within 40 sessions if the stock closes above its high since the sale, above the "
-     "50-day, on 1.2× volume, not rated SELL, market not in CORRECTION (max 2 buy-backs in a row).", "",
-     "**Pass bar (raised because 192 combinations were tried):** beat SPY in tune AND judge, ≥ 80% of judge bootstrap "
+     "50-day, on 1.2× volume, not rated SELL, market not in CORRECTION (max 2 buy-backs in a row). *Early re-entry* = same, "
+     "but the trigger is a close back above the 50-day that also tops the prior 10-day high (3+ sessions after the sale), "
+     "so it can buy back below the sale price.", "",
+     f"**Pass bar (raised because {len(R['combos'])} combinations were tried):** beat SPY in tune AND judge, ≥ 80% of judge bootstrap "
      "resamples above zero, judge drawdown no worse than SPY's + 5 points.", ""]
 if R["mode"].startswith("free"):
     L += ["> ⚠ **Free data:** failed/bought-out companies are missing, so stock picking is flattered. "
@@ -46,12 +48,13 @@ for key, title in (("entry", "Entry filter"), ("setup", "Setups"), ("exit", "Exi
     L += [f"**{title}:** " + " · ".join(f"{k} {a:+.1f} ({p}/{n} beat SPY)" for k, a, p, n in avg_by(key)), ""]
 pairs = {}
 for c in C:
-    if c["reentry"] == "re-entry":
+    if c["reentry"] != "no re-entry":
         o = next(d for d in C if d["reentry"] == "no re-entry" and all(d[k] == c[k] for k in ("entry", "setup", "exit", "market")))
-        pairs.setdefault(c["exit"], []).append(c["tune"]["excess_median"] - o["tune"]["excess_median"])
-L += ["**Re-entry effect by exit** (tune, re-entry minus no re-entry): " +
-      " · ".join(f"{k} {sum(v)/len(v):+.1f}" for k, v in pairs.items()), ""]
-L += ["## All 192 on tune (best first)", "", "| # | Combination | Tune vs SPY | Tune CAGR | Tune DD | Sub-periods vs SPY | Trades | Buy-backs |",
+        pairs.setdefault(c["reentry"], {}).setdefault(c["exit"], []).append(c["tune"]["excess_median"] - o["tune"]["excess_median"])
+for kind, by_exit in pairs.items():
+    L += [f"**{kind.capitalize()} effect by exit** (tune, minus no re-entry): " +
+          " · ".join(f"{k} {sum(v)/len(v):+.1f}" for k, v in by_exit.items()), ""]
+L += [f"## All {len(C)} on tune (best first)", "", "| # | Combination | Tune vs SPY | Tune CAGR | Tune DD | Sub-periods vs SPY | Trades | Buy-backs |",
       "| --- | --- | --- | --- | --- | --- | --- | --- |"]
 for i, c in enumerate(sorted(C, key=lambda c: -c["tune"]["excess_median"]), 1):
     t = c["tune"]
