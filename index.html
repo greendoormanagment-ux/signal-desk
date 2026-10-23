@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.14</title>
+<title>Signal Desk v2.14.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.14<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.14.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -404,7 +404,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.14";
+const APP_VERSION = "v2.14.1";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -653,7 +653,7 @@ const sellPanelHtml = (sig, ec, sym) => {
       + (ec.days <= 14 ? `<br>Your cushion: <b>${ec.gain === null ? "?" : (ec.gain >= 0 ? "+" : "") + ec.gain + "%"}</b> · Expected move: <b>${ec.exp === null ? "?" : "±" + ec.exp + "%"}</b> <span style="opacity:.7">(${ec.src || "n/a"})</span>` : "")
       + `<br><b style="color:${col}">${ec.call}</b>${ec.days <= 14 ? ec.gapNote : ""}`
       + (ec.days <= 14 ? `<br><span style="opacity:.8">After the report: gap up on 2×+ volume that holds the day's low = hold/add · gap down through your stop = sell at the open · stop holds = rescan after the close.</span>`
-        + `<br><span style="font-size:11.5px">Implied move from Fidelity/Schwab (%): <input id="imInp" class="inp sm" inputmode="decimal" style="display:inline-block;width:70px;padding:4px 6px;font-size:12px" value="${ec.src === "your implied move" ? ec.exp : ""}"> <button class="btn-sm" id="imSave" style="padding:4px 8px">SAVE</button></span>` : "")
+        + `<br><span style="font-size:11.5px">Expected move from thinkorswim — type the <b>± dollar number</b> next to the stock price (e.g. 6.107): $<input id="imUsd" class="inp sm" inputmode="decimal" style="display:inline-block;width:70px;padding:4px 6px;font-size:12px" value=""> <span style="opacity:.7">or %:</span> <input id="imInp" class="inp sm" inputmode="decimal" style="display:inline-block;width:60px;padding:4px 6px;font-size:12px" value="${ec.src === "your implied move" ? ec.exp : ""}"> <button class="btn-sm" id="imSave" style="padding:4px 8px">SAVE</button><br><span style="opacity:.7">The app turns the $ move into a % of today's price for you.</span></span>` : "")
       + `</div>`;
   }
   return h + `<br><span style="opacity:.7">Playbook §7–§8 warning signs. Info only — the verdict above still decides. Logged for the day-30 review and the November exit backtest.</span>`;
@@ -1642,7 +1642,8 @@ $("goBtn").onclick = async () => {
     const drawSell = () => {
       $("sellText").innerHTML = sellPanelHtml(sig, ec, sym); show("sellPanel");
       const btn = $("imSave"); if (btn) btn.onclick = () => {
-        const v = parseFloat($("imInp").value);
+        const usd = parseFloat($("imUsd")?.value), px = d?.price;
+        const v = usd > 0 && px > 0 ? Math.round(usd / px * 1000) / 10 : parseFloat($("imInp").value);   // v2.14.1: $ move → %
         if (v > 0) store.set("sd2-im-"+sym, JSON.stringify({ v, rep: ec.date })); else store.set("sd2-im-"+sym, "");
         ec = earningsCheck(d, $("ep").value, calV, $("cs").value, sym); drawSell();
       };
