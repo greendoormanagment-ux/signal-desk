@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.14.1</title>
+<title>Signal Desk v2.15</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -141,7 +141,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.14.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.15<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -280,6 +280,12 @@ input,button{font-family:inherit}
   <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="sellText"></div>
 </div>
 
+<!-- v2.15: I SOLD SOME — record a partial or full sale in the Trades sheet in one tap -->
+<div class="panel" id="soldPanel">
+  <div class="pt">I SOLD SOME · RECORD A SALE IN YOUR TRADES SHEET</div>
+  <div style="font-size:12.5px;line-height:1.75;color:#C4CFD8" id="soldText"></div>
+</div>
+
 <!-- v2.10: holding health (Position Review, info only) -->
 <div class="panel" id="healthPanel">
   <div class="pt">HOLDING HEALTH · INFO ONLY — DOESN'T CHANGE THE VERDICT</div>
@@ -384,7 +390,7 @@ const show = id => { const el=$(id); if(el) el.style.display="block"; };
 const hide = id => { const el=$(id); if(el) el.style.display="none"; };
 const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
 const hideAll = () => {
-  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel","sellPanel"].forEach(hide);
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel","sellPanel","soldPanel"].forEach(hide);
   $("actRow").style.display="none";
 };
 
@@ -404,7 +410,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.14.1";
+const APP_VERSION = "v2.15";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -642,6 +648,38 @@ const earningsCheck = (d, entryPriceStr, cal, stopStr, sym) => {
   const cs = parseFloat(stopStr), worst = exp !== null ? p * (1 - exp / 100) : null;
   const gapNote = worst !== null && cs > 0 ? (worst < cs ? `<br>A gap down of that size ($${fmt(worst)}) would open <b>below your stop $${fmt(cs)}</b> — the stop won't protect you.` : `<br>A gap down of that size ($${fmt(worst)}) stays above your stop $${fmt(cs)}.`) : "";
   return { days, date: cal.date, gain, exp, src, call, cls, gapNote };
+};
+// v2.15: I SOLD SOME — splits the open Trades row: the sold shares become a closed row (exit date/price/reason),
+// the rest stays open with the same entry and stops. Done by the sheet script (?action=sell); nothing else changes.
+const drawSold = (sym, price) => {
+  const t = window.posTrade;
+  if (!t || String(t.ticker).toUpperCase() !== String(sym).toUpperCase()) { $("soldText").innerHTML = "Only for trades in your Trades sheet — open this stock from the sheet first."; show("soldPanel"); return; }
+  const held = parseFloat(t.shares) || 0;
+  $("soldText").innerHTML = `Sold part (or all) of <b>${t.ticker} · ${t.account || t.type || "row " + t.row}</b>${held ? ` (you hold <b>${held}</b> shares)` : ""}? Enter it here and the app updates your Trades sheet for you.`
+    + `<br>Shares sold: <input id="soldSh" class="inp sm" inputmode="numeric" style="display:inline-block;width:70px;padding:4px 6px;font-size:12px"> `
+    + `<button class="btn-sm" id="soldHalf" style="padding:4px 8px">HALF</button> <button class="btn-sm" id="soldAll" style="padding:4px 8px">ALL</button>`
+    + `<br>Fill price $: <input id="soldPx" class="inp sm" inputmode="decimal" style="display:inline-block;width:80px;padding:4px 6px;font-size:12px" value="${price ? fmt(price) : ""}"> `
+    + `Reason: <select id="soldWhy" class="inp sm" style="display:inline-block;padding:4px 6px;font-size:12px;min-width:0"><option>Trim before earnings</option><option>Stop hit</option><option>Sell signal</option><option>Took profit</option><option>Other</option></select>`
+    + `<br><button class="btn-sm" id="soldGo" style="padding:6px 12px;margin-top:6px">SAVE SALE TO SHEET</button> <span id="soldMsg"></span>`;
+  show("soldPanel");
+  $("soldHalf").onclick = () => { $("soldSh").value = held ? Math.floor(held / 2) : "half"; };
+  $("soldAll").onclick = () => { $("soldSh").value = held ? held : "all"; };
+  $("soldGo").onclick = async () => {
+    const shRaw = String($("soldSh").value).trim().toLowerCase(), px = parseFloat(String($("soldPx").value).replace(/[$,]/g, ""));
+    if (!shRaw || !(px > 0)) { $("soldMsg").innerHTML = "Enter shares and your fill price."; return; }
+    if (!SHEET_KEY) { $("soldMsg").innerHTML = "No sheet key on this device — tap Setup."; return; }
+    $("soldMsg").innerHTML = "Saving…"; $("soldGo").disabled = true;
+    const q = new URLSearchParams({ action: "sell", key: SHEET_KEY, row: t.row, ticker: t.ticker, price: px, reason: $("soldWhy").value });
+    if (shRaw === "half") q.set("half", "1"); else if (shRaw === "all") q.set("all", "1"); else q.set("shares", shRaw);
+    try {
+      const j = await (await fetch(SHEET_URL + "?" + q.toString())).json();
+      if (!j.ok) { $("soldMsg").innerHTML = `<b style="color:#E5484D">Not saved:</b> ${j.error || "unknown error"}`; $("soldGo").disabled = false; return; }
+      $("soldMsg").innerHTML = `<b style="color:#30A46C">✓ Saved.</b> ${j.sold} sh sold @ $${fmt(px)}` + (j.remaining > 0
+        ? ` — ${j.remaining} sh still open (row ${j.openRow}), closed part on row ${j.closedRow}.<br><b>Now change your stop order at the broker to ${j.remaining} shares.</b>`
+        : ` — position closed (row ${j.closedRow}). <b>Cancel the stop order at the broker.</b>`);
+      window.openTrades = null; lastFilledSym = ""; try { loadOpenTrades(); } catch (e) {}
+    } catch (e) { $("soldMsg").innerHTML = "Couldn't reach the sheet (update the sheet script?). Nothing was changed."; $("soldGo").disabled = false; }
+  };
 };
 const sellPanelHtml = (sig, ec, sym) => {
   const mark = f => f === true ? "✗" : f === false ? "✓" : "~";
@@ -1649,6 +1687,7 @@ $("goBtn").onclick = async () => {
       };
     };
     if (sig || ec) drawSell();
+    if (mode==="position") drawSold(sym, d?.price);
     const sellLog = {};
     if (sig) { sellLog.sellSignals = sig.on.map(x=>x.k).join(", ") || "none"; sellLog.sellCount = sig.on.length; }
     if (ec && ec.days <= 14) { sellLog.earnCushion = ec.gain ?? ""; sellLog.expMove = ec.exp ?? ""; sellLog.moveSrc = /implied/.test(ec.src) ? "implied" : ec.src ? "gap estimate" : ""; sellLog.earnCall = ec.call; }
