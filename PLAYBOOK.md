@@ -192,6 +192,8 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 | 10/21 | KNSA | Hold full into earnings (cushion +9.8% > est. move 7.9%); stop $75.76 | 65% | $83.17 | Confirmed breakout 10/20 on 2.4× volume; ACCUMULATION; 0 sell warnings except market | | | |
 | 10/21 | NVDA | No real buy (paper only) | 65% | $216.47 | Below a falling 50-day, RS flat, PRESSURE, 3rd AI-infrastructure trade + concentration with existing holdings | | | |
 | 10/23 | KNSA | Trim half before 10/27 pre-market earnings (sell by Mon 10/26 close) unless price rebuilds the cushion | 70% | $79.00 | Cushion ≈ +4.3% vs thinkorswim market-maker move ±$6.11 (7.7%); stop $75.76 is only 4% away → a normal earnings gap down goes through it | | | |
+| 10/29 | MEDP | Watch — buy (paper while the gate isn't UPTREND) only on a close above $684.52 on ≥ 1.4× volume; pass on a close below ~$645 on volume | 60% | ~$674 | 1.5% under 52-week high, EPS +25% passes, earnings just out (no block); but revenue only +8.5%, 10/22 heavy-volume reversal off the high, market CORRECTION | | | |
+| 10/29 | MRVL | Keep the stop — let it sell at the open (gap down through the $228.30 stop on the Lumentum deal report); no pulling the stop | 60% | ~$223 pre-market | §8 rule: gap through the stop = sell at the open; deal size (~$80B vs $3.9B cash) means dilution/debt risk could get worse when terms come out; real buy made while the gate read PRESSURE (paper-only rule) | | | |
 
 ## 14. Open questions for the 10/29 review
 - Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
