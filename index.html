@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.15</title>
+<title>Signal Desk v2.16</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -130,6 +130,12 @@ input,button{font-family:inherit}
 .guide b{color:var(--text)}
 .guide .gsize{margin-top:10px;font-size:12px;color:var(--dim)}
 .guide .gsize a{color:var(--blue);cursor:pointer;text-decoration:underline}
+.actbox{border-width:2px}
+.actbox .acthead{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;line-height:1.35;letter-spacing:.3px}
+.actbox .actwhy{font-size:12.5px;line-height:1.6;color:#C4CFD8;margin-top:6px}
+.gatebox{margin:0 0 10px;padding:10px 12px;border:2px solid #E5484D;border-radius:8px;background:#E5484D14;color:#F1A6A9;font-size:13px;line-height:1.5}
+.gatebox b{color:#FF8A8F}
+.timebox{margin:0 0 10px;padding:10px 12px;border:2px solid #E8A33D;border-radius:8px;background:#E8A33D14;color:#E8C286;font-size:13px;line-height:1.5}
 .guide .gwarn{margin-top:10px;font-size:12px;line-height:1.5;color:var(--amber);background:#E8A33D14;border:1px solid #E8A33D44;border-radius:6px;padding:8px 10px}
 .eight{margin-top:10px;font-size:11px;color:var(--amber);background:#E8A33D14;border:1px solid #E8A33D44;border-radius:6px;padding:9px 11px;line-height:1.5;display:none}
 /* disclaimer */
@@ -141,7 +147,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.15<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -241,6 +247,12 @@ input,button{font-family:inherit}
 <div class="act-row" id="actRow">
   <button class="act-btn" data-a="Bought">I BOUGHT IT</button>
   <button class="act-btn" data-a="Passed">I PASSED</button>
+</div>
+
+<!-- v2.16: one plain ACTION line for holdings (exact price + shares) -->
+<div class="panel actbox" id="actionBox">
+  <div class="pt">ACTION · WHAT TO DO WITH THIS HOLDING</div>
+  <div id="actionText"></div>
 </div>
 
 <!-- v2.4: what to do now -->
@@ -390,7 +402,7 @@ const show = id => { const el=$(id); if(el) el.style.display="block"; };
 const hide = id => { const el=$(id); if(el) el.style.display="none"; };
 const showFlex = id => { const el=$(id); if(el) el.style.display="flex"; };
 const hideAll = () => {
-  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel","sellPanel","soldPanel"].forEach(hide);
+  ["confidence","mktBanner","ticket","scorePanel","nml","actRow","guidePanel","planPanel","chkPanel","changePanel","explPanel","healthPanel","footPanel","sellPanel","soldPanel","actionBox"].forEach(hide);
   $("actRow").style.display="none";
 };
 
@@ -410,7 +422,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.15";
+const APP_VERSION = "v2.16";
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -563,7 +575,7 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
     const ok = since !== null && since <= 20 && ep > 0;
     const fired = ok ? p < ep * 0.98 : null;
     S.push({ k: "Failed breakout", fired, w: 2,
-      t: !ok ? (ep > 0 && since !== null ? `held ${since} sessions — check only applies to the first 20` : "needs buy price + date") : fired ? `${r1(pct(p, ep))}% vs your buy price after ${since} sessions — the breakout isn't holding. Playbook: cut or tighten to just under the breakout-day low` : `holding above your buy price (${r1(pct(p, ep))}%)` });
+      t: !ok ? (ep > 0 && since !== null ? `held ${since} sessions — check only applies to the first 20` : "needs buy price + date") : fired ? `${r1(pct(p, ep))}% vs your buy price after ${since} sessions — the breakout isn't holding. Playbook: cut, or raise the stop to just under the breakout-day low` : `holding above your buy price (${r1(pct(p, ep))}%)` });
   }
   // 2. Heavy-volume break of the 50-day: a close crossed below the 50-day on above-average volume in the last 3 sessions, still below
   {
@@ -597,13 +609,13 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
     for (let i = runStart; i < n; i++) { const g = pct(b[i].c, b[i - 1].c); if (g < worst.g) worst = { g, i }; }
     const fired = worst.i >= n - 3 && worst.g <= -3 && av && b[worst.i].v > av;
     S.push({ k: "Worst day of the move", fired: !!fired, w: 1,
-      t: fired ? `${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)} (${r1(b[worst.i].v / av)}× volume) — biggest drop since the move began. Playbook: tighten stop or trim` : worst.i >= 0 ? `biggest drop of the move ${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)}` : "no down days in the move" });
+      t: fired ? `${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)} (${r1(b[worst.i].v / av)}× volume) — biggest drop since the move began. Playbook: raise the stop (see ACTION) or sell half` : worst.i >= 0 ? `biggest drop of the move ${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)}` : "no down days in the move" });
   }
   // 5. Distribution cluster: 3+ down days on above-average volume in the last 10 sessions
   {
     let dist = 0; for (let i = n - 10; i < n; i++) if (b[i].c <= b[i - 1].c * 0.998 && av && b[i].v > av) dist++;
     S.push({ k: "Distribution cluster", fired: dist >= 3, w: 1,
-      t: `${dist} heavy-volume down day${dist === 1 ? "" : "s"} in the last 10 sessions${dist >= 3 ? ". Playbook: tighten stop, no adding" : ""}` });
+      t: `${dist} heavy-volume down day${dist === 1 ? "" : "s"} in the last 10 sessions${dist >= 3 ? ". Playbook: raise the stop (see ACTION), no adding" : ""}` });
   }
   // 6. Stage change (Weinstein): 150-day (~30-week) line flat/falling AND price below it
   {
@@ -617,11 +629,12 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
   {
     const fired = mktStatus ? /PRESSURE|CORRECTION/.test(mktStatus) : null;
     S.push({ k: "Market", fired, w: mktStatus === "CORRECTION" ? 2 : 1,
-      t: mktStatus ? `${mktStatus}${fired ? " — tighten stops, no adding" : ""}` : "not available" });
+      t: mktStatus ? `${mktStatus}${fired ? " — raise stops (see ACTION), no adding" : ""}` : "not available" });
   }
   const on = S.filter(x => x.fired === true), pts = on.reduce((s, x) => s + x.w, 0);
-  const read = pts === 0 ? "No sell warnings" : pts === 1 ? "1 warning — watch closely" : pts <= 3 ? `${on.length} warning${on.length > 1 ? "s" : ""} — tighten your stop` : `${on.length} warnings — consider selling at least half`;
-  return { S, on, read, pts };
+  const low5 = Math.min(...b.slice(n - 5).map(x => x.l || x.c)); // v2.16: "raise the stop" = just under the lowest low of the last 5 trading days
+  const read = pts === 0 ? "No sell warnings" : pts === 1 ? "1 warning — watch closely" : pts <= 3 ? `${on.length} warning${on.length > 1 ? "s" : ""} — raise your stop (see ACTION)` : `${on.length} warnings — sell at least half (see ACTION)`;
+  return { S, on, read, pts, low5 };
 };
 // Earnings checkpoint (Playbook §8): gain since entry vs the expected earnings move
 const earningsCheck = (d, entryPriceStr, cal, stopStr, sym) => {
@@ -647,7 +660,15 @@ const earningsCheck = (d, entryPriceStr, cal, stopStr, sym) => {
   else { call = "Expected move unknown — add your broker's implied move"; cls = "info"; }
   const cs = parseFloat(stopStr), worst = exp !== null ? p * (1 - exp / 100) : null;
   const gapNote = worst !== null && cs > 0 ? (worst < cs ? `<br>A gap down of that size ($${fmt(worst)}) would open <b>below your stop $${fmt(cs)}</b> — the stop won't protect you.` : `<br>A gap down of that size ($${fmt(worst)}) stays above your stop $${fmt(cs)}.`) : "";
-  return { days, date: cal.date, gain, exp, src, call, cls, gapNote };
+  // v2.16: KNSA lesson — a stop inside the normal earnings swing can be hit BEFORE the report
+  let shake = "";
+  if (days <= 7 && exp !== null && cs > 0 && p > cs && (p / cs - 1) * 100 < exp) shake = `<br><b style="color:#E8A33D">⚠ Your stop ($${fmt(cs)}) is only ${r1((p / cs - 1) * 100)}% away — inside a normal earnings swing (±${exp}%).</b> You may be stopped out before or at the report. Decide now: sell half, hold, or accept it.`;
+  // v2.16 MRVL/AMZN lesson: the gap loss in dollars
+  const t = window.posTrade, sh = t && String(t.ticker).toUpperCase() === String(sym).toUpperCase() ? parseFloat(t.shares) || 0 : 0;
+  let gapUsd = "";
+  if (sh > 0 && worst !== null && ep > 0) { const loss = Math.round((worst - ep) * sh), stopLoss = cs > 0 ? Math.round((cs - ep) * sh) : null;
+    gapUsd = `<br>On your ${sh} shares a normal gap down to $${fmt(worst)} = <b>${loss >= 0 ? "+" : "−"}$${Math.abs(loss).toLocaleString()}</b>${stopLoss !== null && worst < cs ? ` vs ${stopLoss >= 0 ? "+" : "−"}$${Math.abs(stopLoss).toLocaleString()} if the stop filled at $${fmt(cs)}` : ""}.`; }
+  return { days, date: cal.date, gain, exp, src, call, cls, gapNote: gapNote + gapUsd + shake, sh };
 };
 // v2.15: I SOLD SOME — splits the open Trades row: the sold shares become a closed row (exit date/price/reason),
 // the rest stays open with the same entry and stops. Done by the sheet script (?action=sell); nothing else changes.
@@ -695,6 +716,68 @@ const sellPanelHtml = (sig, ec, sym) => {
       + `</div>`;
   }
   return h + `<br><span style="opacity:.7">Playbook §7–§8 warning signs. Info only — the verdict above still decides. Logged for the day-30 review and the November exit backtest.</span>`;
+};
+
+// v2.16: post-earnings drift setup — a 4%+ gap up on 2×+ volume in the last 3 sessions (Playbook §8). INFO ONLY until Round 8 tests it.
+const driftSetup = (d) => {
+  const b = Array.isArray(d?.bars) ? d.bars : [], n = b.length, av = d?.avgVolume || 0;
+  if (n < 5 || !av || !d?.price) return "";
+  for (let i = n - 1; i >= n - 3; i--) {
+    const g = b[i].o / b[i - 1].c - 1;
+    if (g >= 0.04 && b[i].v >= 2 * av) {
+      const lo = Math.min(...b.slice(i).map(x => x.l), d.price), holds = d.price > b[i].l;
+      return `<b>Earnings-drift setup?</b> Gapped up ${(g * 100).toFixed(1)}% on ${(b[i].v / av).toFixed(1)}× volume on ${String(b[i].date).slice(0, 10)}. Gap-day low $${fmt(b[i].l)}: ${holds ? "<b>holding</b>" : "<b>broken</b>"}${lo < b[i].l ? " (traded below it)" : ""}. Paper only until Round 8 tests it.`;
+    }
+  }
+  return "";
+};
+// v2.16: one plain ACTION line for a holding — the exact thing to do, with a price and a share count
+const tradingDayBefore = (ymd) => { const t = new Date(ymd + "T12:00:00"); do { t.setDate(t.getDate() - 1); } while (t.getDay() === 0 || t.getDay() === 6); return t.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" }); };
+const drawAction = (sym, d, rule, sig, ec) => {
+  if (!rule || mode !== "position") return;
+  const t = window.posTrade && String(window.posTrade.ticker).toUpperCase() === String(sym).toUpperCase() ? window.posTrade : null;
+  const sh = t ? parseFloat(t.shares) || 0 : 0, half = sh ? Math.floor(sh / 2) : 0, third = sh ? Math.max(1, Math.floor(sh / 3)) : 0;
+  const shTxt = (k) => sh ? `<b>${k}</b> of your ${sh} shares` : (k === "all" ? "<b>all</b> your shares" : `<b>${k}</b> of your shares`);
+  const price = d?.price || 0, cs = rule.userStop || 0;
+  // the stop to raise to: rule A2's stop, and/or "just under the lowest low of the last 5 trading days" when warnings say raise it
+  let to = 0, why = "";
+  if (rule.stopAdvice === "raise" && rule.appStop < price) { to = rule.appStop; why = ["", "original stop", "breakeven — it traded at +1R", "trailing stop (high since entry − 3× daily range)"][rule.stopStep] || "rule A2"; }
+  const warnRaise = sig && (sig.pts >= 2 || rule.status === "TIGHTEN_STOP") && sig.low5 > 0;
+  if (warnRaise) { const lv = Math.floor((sig.low5 - 0.01) * 100) / 100; if (lv > to && lv < price * 0.995) { to = lv; why = "just under the lowest low of the last 5 trading days (warning signs)"; } }
+  if (!(to > cs + 0.005)) to = 0;
+  const raiseLine = to ? `Raise your stop to <b>$${fmt(to)}</b>${cs ? ` (from $${fmt(cs)})` : ""} — ${why}. At your broker, change the stop order to $${fmt(to)}, then tap <b>I RAISED MY STOP</b> below.` : "";
+  let col = "#30A46C", head = "", lines = [];
+  if (rule.status === "NO_DATA") { col = "#8FB6DA"; head = "No call — no live price came back"; lines.push("Your stop order at the broker still protects you. Rescan in a minute."); }
+  else if (rule.status === "SELL_ALL") { col = "#E5484D"; head = `SELL ${sh ? "ALL " + sh + " SHARES" : "THE WHOLE POSITION"}`; lines.push(rule.sellReason || "The sell rule triggered."); lines.push("Then log it with <b>I SOLD SOME</b> (ALL, your fill price, reason \"Stop hit\" or \"Sell signal\") and cancel any open stop order."); }
+  else if (ec && ec.days <= 7 && ec.cls === "warn") { col = "#E8A33D"; head = `SELL HALF BEFORE EARNINGS: ${sh ? half + " shares" : "half your shares"}`;
+    lines.push(`${ec.call}. Report ${ec.date}: sell by the close on <b>${tradingDayBefore(ec.date)}</b> (or by the close on ${ec.date} if it reports after the bell).`);
+    lines.push(`Then change your stop order to the ${sh ? sh - half + " shares" : "shares"} you keep${to ? ` at <b>$${fmt(to)}</b>` : cs ? ` at $${fmt(cs)}` : ""}, and log the sale with <b>I SOLD SOME</b> (reason "Trim before earnings").`); }
+  else if (sig && sig.pts >= 4) { col = "#E5484D"; head = `SELL HALF: ${sh ? half + " shares" : "half your shares"} today`;
+    lines.push(`${sig.on.length} warning signs: ${sig.on.map(x => x.k).join(", ")}.`); if (raiseLine) lines.push(`On the shares you keep: ${raiseLine}`); lines.push("Log the sale with <b>I SOLD SOME</b> (reason \"Sell signal\")."); }
+  else if (rule.status === "SCALE_OUT") { col = "#30A46C"; head = `TAKE SOME PROFIT: sell ${sh ? third + " shares" : "a third"} (optional)`;
+    lines.push(`Up ${fmtPct(rule.gainPct)} — the +20% scale-out rule (still being tested; letting it run is also fine).`); if (raiseLine) lines.push(raiseLine); }
+  else if (to) { col = "#E8A33D"; head = `RAISE YOUR STOP TO $${fmt(to)}`; lines.push(raiseLine); if (sig?.on?.length) lines.push(`Warning signs: ${sig.on.map(x => x.k).join(", ")}.`); }
+  else { head = "NO ACTION — keep holding"; lines.push(cs ? `Stop stays at <b>$${fmt(cs)}</b>. Check it's live at your broker.` : `Make sure a stop order is live at your broker${rule.appStop ? ` (rule stop $${fmt(rule.appStop)})` : ""}.`); lines.push("Next check: Monday or Thursday, or after any big move."); }
+  if (ec && ec.days > 7 && ec.days <= 14 && !/SELL/.test(head)) lines.push(`Earnings ${ec.date} (${ec.days} days): run the cushion check here 7 days before.`);
+  // I RAISED MY STOP — writes Current Stop to the Trades sheet (never lower)
+  const btn = t ? `<div style="margin-top:10px;font-size:12px">I RAISED MY STOP to $<input id="rsPx" class="inp sm" inputmode="decimal" style="display:inline-block;width:86px;padding:4px 6px;font-size:12px" value="${to ? to.toFixed(2) : ""}"> <button class="btn-sm" id="rsGo" style="padding:5px 10px">SAVE TO SHEET</button> <span id="rsMsg"></span></div>` : "";
+  $("actionBox").style.borderColor = col;
+  $("actionText").innerHTML = `<div class="acthead" style="color:${col}">${head}</div><div class="actwhy">${lines.join("<br>")}</div>${btn}`;
+  show("actionBox");
+  const go = $("rsGo"); if (go) go.onclick = async () => {
+    const v = parseFloat(String($("rsPx").value).replace(/[$,]/g, ""));
+    if (!(v > 0)) { $("rsMsg").innerHTML = "Enter the new stop price."; return; }
+    if (cs && v < cs) { $("rsMsg").innerHTML = `<b style="color:#E5484D">That's lower than your current stop $${fmt(cs)}.</b> Stops only move up.`; return; }
+    if (!SHEET_KEY) { $("rsMsg").innerHTML = "No sheet key on this device — tap Setup."; return; }
+    $("rsMsg").innerHTML = "Saving…"; go.disabled = true;
+    try {
+      const q = new URLSearchParams({ action: "stop", key: SHEET_KEY, row: t.row, ticker: t.ticker, stop: v });
+      const j = await (await fetch(SHEET_URL + "?" + q.toString())).json();
+      if (!j.ok) { $("rsMsg").innerHTML = `<b style="color:#E5484D">Not saved:</b> ${j.error || "unknown error"}`; go.disabled = false; return; }
+      $("rsMsg").innerHTML = `<b style="color:#30A46C">✓ Saved.</b> Current Stop is now $${fmt(v)}${j.oldStop ? ` (was $${fmt(+j.oldStop)})` : ""}. Make sure the order at your broker matches.`;
+      $("cs").value = v; t.currentStop = v; window.openTrades = null; try { loadOpenTrades(); } catch (e) {}
+    } catch (e) { $("rsMsg").innerHTML = "Couldn't reach the sheet. Nothing was changed."; go.disabled = false; }
+  };
 };
 // v2.11: today's move + volume pace — uses data already fetched (quote + daily bars). INFO/LOGGING ONLY, no rule reads it.
 const dayMove = (d) => {
@@ -1181,7 +1264,7 @@ const getConfidence = (d) => {
   if (!d.sma200) missing.push("200-day MA");
   if (!d.rsi)    missing.push("RSI");
   if (!d.atr)    missing.push("ATR");
-  if (missing.length===0) return { level:"high", label:"🟢 HIGH", reason:`Price: real-time · All indicators: exact · Source: ${d.source}` };
+  if (missing.length===0) return { level:"high", label:"🟢 HIGH (price data)", reason:`Price: real-time · All price indicators: exact · Source: ${d.source} · Earnings and fundamentals are checked separately below` };
   if (missing.length<=2)  return { level:"med",  label:"🟡 MEDIUM", reason:`Price: real-time · Missing: ${missing.join(", ")} · Source: ${d.source}` };
   return { level:"low", label:"🔴 LOW", reason:`Several indicators unavailable · Source: ${d.source}` };
 };
@@ -1245,10 +1328,10 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
           result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"fail", detail:`Trading above pivot $${fmt(pivot)} but hasn't CLOSED above it yet — wait for the close and check volume` };
         }
       } else if (nearPullback) {
+        // v2.16: BREAKOUTS ONLY. Pullbacks lost in the backtests (Rounds 4–7) and all 12 day-30 test trades were pullbacks → info only.
         result.setupType = "PULLBACK";
-        result.entryZone = { low: d.sma50 * 0.97, high: d.sma50 * 1.03 };
-        result.stopLoss  = d.sma50 * 0.93;
-        result.checks.entry = { score:SCORE_WEIGHTS.entry, status:"pass", detail:`Pullback to 50DMA zone ($${fmt(d.sma50 * 0.97)}–$${fmt(d.sma50 * 1.03)})` };
+        result.watch = true;
+        result.checks.entry = { score:Math.round(SCORE_WEIGHTS.entry*0.5), status:"fail", detail:`Pullback to the 50-day zone ($${fmt(d.sma50 * 0.97)}–$${fmt(d.sma50 * 1.03)}) — info only since v2.16: only breakouts are BUYs${pivot?`. Buy point: a close above $${fmt(pivot)} on ≥${volNeed}× volume`:""}` };
       } else if (pivot && pctVsPivot > 5) {
         result.setupType = "EXTENDED";
         result.checks.entry = { score:0, status:"fail", detail:`Extended ${pctVsPivot.toFixed(1)}% past pivot $${fmt(pivot)} — do not chase` };
@@ -1388,11 +1471,15 @@ const runRuleEngine = (d, marketData, mode, entryPrice, entryDateStr, currentSto
     const ed = parseEntryDate(entryDateStr);
     let hiSince = Math.max(ep || 0, price);
     if (ed && Array.isArray(d?.bars)) {
-      const since = d.bars.filter(x => { const t=new Date(x.date+"T00:00:00"); return t >= ed; });
+      const since = d.bars.filter(x => { const t=new Date(x.date+"T00:00:00"); return t > ed; }); // v2.16 #12: from the day AFTER the buy (the buy-day high may have come before your fill)
       if (since.length) hiSince = Math.max(hiSince, ...since.map(x=>x.h));
       result.entryDateUsed = true;
     }
     result.hiSinceEntry = hiSince;
+    if (ed && Array.isArray(d?.bars) && ep > 0) { // v2.16 #70: best and worst point while held (are stops too tight?)
+      const held = d.bars.filter(x => new Date(x.date+"T00:00:00") > ed);
+      if (held.length) { result.mfe = (Math.max(...held.map(x=>x.h), price) / ep - 1) * 100; result.mae = (Math.min(...held.map(x=>x.l), price) / ep - 1) * 100; }
+    }
     // v2.7 STOP RULE A2 — "earn the trail" (changed 10/07/26):
     //   Step 1: until the stock has traded at +1R, keep the ORIGINAL stop (the one you sized with).
     //   Step 2: once it has traded at +1R, raise the stop to breakeven (your buy price).
@@ -1515,6 +1602,7 @@ User's actual stop: $${fmt(ruleResult.userStop)} (never suggest lowering it)`:''
 2. Return a JSON object filling in the fields the rule engine couldn't compute from price data alone.
 3. Explain the decision in plain English.
 DO NOT change the rating, score, or any rule-engine output. The rules decide. You explain.
+When you describe numbers, use the exact figures given or found (e.g. "EPS +30%", never "nearly doubled" for +30%). Name quarters the way the company reports them. Never include citation markup.
 
 Respond ONLY with raw JSON (no fences):
 {"sector":"exactly one of: Basic Materials, Communication Services, Consumer Cyclical, Consumer Defensive, Energy, Financial, Healthcare, Industrials, Real Estate, Technology, Utilities","industry":"short industry name, e.g. Biotechnology","marketStatus":"UPTREND"|"PRESSURE"|"CORRECTION" (UPTREND = S&P/Nasdaq above rising 50-day with healthy breadth; PRESSURE = uptrend but testing 50-day or distribution days piling up; CORRECTION = below 50-day and falling),"marketNote":"one line on index condition","rsCheck":{"score":0-10,"status":"pass"|"neutral"|"fail","detail":"RS vs SPX, short"},"fundamentals":{"quarter":"most recent reported quarter, e.g. Q2 2026","epsLatest":number (adjusted/non-GAAP diluted EPS for that quarter; negative if a loss),"epsYearAgo":number (same measure, same quarter one year earlier; negative if a loss),"revenueGrowthPct":number (year-over-year %)} — report the numbers only, do not judge pass/fail; use null for anything you cannot find,"nextEarningsDate":"YYYY-MM-DD of the NEXT scheduled earnings report (search for it), or \"unknown\"","whatChanges":["bullet 1","bullet 2","bullet 3"],"explanation":"3-4 sentences plain English: what the price checks and your research show, what the chart looks like, what to watch. Do not state a final rating.","asOf":"data freshness"}`
@@ -1548,14 +1636,16 @@ Respond ONLY with raw JSON (no fences):
   const clean = text.replace(/```json\n?|```\n?/g,"").trim();
   const s0 = clean.indexOf("{"), e0 = clean.lastIndexOf("}");
   if (s0===-1) throw new Error("No JSON in response: "+clean.slice(0,120));
-  try { return JSON.parse(clean.slice(s0,e0+1)); }
+  // v2.16 #4: strip citation tags the web-search tool leaves in text
+  const scrub = (v) => typeof v==="string" ? v.replace(/<\/?cite[^>]*>/gi,"").replace(/\(?\s*cite\s*index\s*=[^)\]]*[)\]]?/gi,"").replace(/\s{2,}/g," ").trim() : Array.isArray(v) ? v.map(scrub) : (v && typeof v==="object") ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,scrub(x)])) : v;
+  try { return scrub(JSON.parse(clean.slice(s0,e0+1))); }
   catch(_) {
     // repair
     const s = clean.slice(s0);
     for (let cut=s.length;cut>1;cut--) {
       const ch=s[cut-1]; if(ch!=="}"&&ch!=="]"&&ch!=='"') continue;
       const cand=s.slice(0,cut).replace(/,\s*$/,"");
-      try { return JSON.parse(cand+("}").repeat((cand.match(/\{/g)||[]).length-(cand.match(/\}/g)||[]).length)); } catch(_) {}
+      try { return scrub(JSON.parse(cand+("}").repeat((cand.match(/\{/g)||[]).length-(cand.match(/\}/g)||[]).length))); } catch(_) {}
     }
     throw new Error("Couldn't parse AI response.");
   }
@@ -1574,10 +1664,14 @@ const stopLoad = () => { clearInterval(loadTick); hide("loading"); };
 document.querySelectorAll(".act-btn").forEach(b => {
   b.onclick = () => {
     if (!scanLog.length) return;
-    scanLog[0].action = b.dataset.a;
+    const g = scanLog[0].market;
+    if (b.dataset.a==="Bought" && scanLog[0].mode==="Entry" && g && g!=="UPTREND") { // v2.16: gate guard
+      if (!window.confirm(`The market gate reads ${g}. The rule is no real-money buys unless it reads UPTREND.\n\nOK = I bought with real money anyway (logged as a rule break, set Rules Followed = N).\nCancel = go back (log it as a paper trade instead).`)) return;
+      scanLog[0].action = "Bought — RULE BREAK (gate " + g + ")";
+    } else scanLog[0].action = b.dataset.a;
     saveLog(); sendToSheet(scanLog[0]);
     document.querySelectorAll(".act-btn").forEach(x => {
-      const on = scanLog[0].action===x.dataset.a;
+      const on = String(scanLog[0].action||"").startsWith(x.dataset.a);
       const col = x.dataset.a==="Bought" ? "#2FBF71" : "#8A97A3";
       x.style.borderColor = on?col:"var(--border2)";
       x.style.background  = on?col+"22":"var(--bg3)";
@@ -1687,7 +1781,7 @@ $("goBtn").onclick = async () => {
       };
     };
     if (sig || ec) drawSell();
-    if (mode==="position") drawSold(sym, d?.price);
+    if (mode==="position") { drawSold(sym, d?.price); try { drawAction(sym, d, finalRule, sig, ec); } catch (e) { console.error("action", e); } }
     const sellLog = {};
     if (sig) { sellLog.sellSignals = sig.on.map(x=>x.k).join(", ") || "none"; sellLog.sellCount = sig.on.length; }
     if (ec && ec.days <= 14) { sellLog.earnCushion = ec.gain ?? ""; sellLog.expMove = ec.exp ?? ""; sellLog.moveSrc = /implied/.test(ec.src) ? "implied" : ec.src ? "gap estimate" : ""; sellLog.earnCall = ec.call; }
@@ -1798,12 +1892,18 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   };
   const per = (price && rule.stopLoss) ? price - rule.stopLoss : 0;
   const shares = per > 0 ? Math.floor(risk / per) : 0;
-  const sizeLine = (mode==="entry" && shares>0)
-    ? `<div class="gsize">Size: <b>${shares} shares</b> (≈$${Math.round(shares*price).toLocaleString()}) risks $${risk.toLocaleString()} to the $${fmt(rule.stopLoss)} stop. <a onclick="setRisk()">change risk $</a></div>` : "";
+  const buyish = mode==="entry" && (rule.rating==="BUY" || rule.rating==="CHECK_FIRST");
+  const gapX = (shares>0 && d?.atr) ? Math.round(shares * d.atr) : 0; // v2.16 #33: what one extra ATR past the stop would cost
+  const sizeLine = (buyish && shares>0)
+    ? `<div class="gsize">Size: <b>${shares} shares</b> (≈$${Math.round(shares*price).toLocaleString()}) risks $${risk.toLocaleString()} to the $${fmt(rule.stopLoss)} stop. <a onclick="setRisk()">change risk $</a>${gapX?`<br>Gap risk: if it gaps one day's range ($${fmt(d.atr)}) past the stop, the loss grows by about <b>$${gapX.toLocaleString()}</b>. Size down before big events.`:""}</div>` : "";
   const tradeRow = (type) => `add a Trades row: <b>${type}</b> · ${sym} · ${rule.setupType||""} · score ${rule.score} · ${ai?.marketStatus||"market"} · ${today} · entry <b>$${fmt(price)}</b> · stop <b>$${fmt(rule.stopLoss)}</b> · <b>${shares}</b> shares${ai?.sector?` · Sector <b>${canonSector(ai.sector)}</b> (column X)`:""}.`;
   if (mode==="entry") {
     const r = rule.rating;
-    if (r==="BUY") {
+    if (r==="BUY" && ai?.marketStatus && ai.marketStatus!=="UPTREND") {
+      L.push(`<b>Paper only.</b> The market gate reads <b>${ai.marketStatus}</b>, and the rule is no real-money buys unless it reads UPTREND.`);
+      L.push(`Tap <b>I PASSED</b>, then ${tradeRow("Paper")} Rules Followed = Y.`);
+      L.push(`Set a price alert at the stop <b>$${fmt(rule.stopLoss)}</b> for the paper trade.`);
+    } else if (r==="BUY") {
       L.push(`<b>Decide: real money or paper?</b>`);
       L.push(`<b>Real:</b> tap I BOUGHT IT only after you buy. Your 24-hour rule: rescan tomorrow — if it's still BUY and inside the buy zone, buy ${shares||"the sized"} shares and place the <b>$${fmt(rule.stopLoss)}</b> stop the same day.`);
       L.push(`<b>Paper:</b> tap I PASSED, then ${tradeRow("Paper")} Rules Followed = Y.`);
@@ -1816,6 +1916,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       L.push(`<b>Either fails or can't be confirmed:</b> tap I PASSED. Nothing to log.`);
     } else if (r==="WATCH") {
       const need = d?.avgVolume ? Math.ceil(d.avgVolume*1.4) : null;
+      if (rule.setupType==="PULLBACK") L.push(`<b>Pullbacks are info only now (v2.16).</b> Only a breakout can be a BUY. The backtests and the 30-day test both showed pullbacks losing.`);
       if (rule.setupType==="INTRADAY") L.push(`<b>Above the pivot right now — but a breakout only counts at the CLOSE.</b> The app's volume is partial during market hours: check <b>Volume</b> on Finviz, or rescan after 4 PM.`);
       L.push(`Tap <b>I PASSED</b>. Don't log a trade — a WATCH isn't a buy.`);
       if (rule.pivot) L.push(`Set a price alert at the pivot <b>$${fmt(rule.pivot)}</b>.`);
@@ -1842,9 +1943,9 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       else L.push(`Keep your existing stop. Don't raise it above today's price.`);
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
     }
-    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale in Account Activity; note it in the trade's Notes.`); }
+    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale with <b>I SOLD SOME</b> below — it updates your Trades sheet.`); }
     else if (st==="NO_DATA") { L.push(`<b>No live price came back</b> — the app makes no sell/hold call without one. Your stop order at the broker still protects you. Check your Twelve Data key (Setup) and rescan.`); }
-    else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`In Trades, fill <b>Exit Date</b> (${today}), <b>Exit Price</b> and <b>Exit Reason</b> — P/L calculates itself.`); L.push(`Real money: also add the sale to Account Activity.`); }
+    else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`Log it with <b>I SOLD SOME</b> below (ALL, your fill price) — it closes the Trades row for you, and P/L calculates itself.`); }
   }
   // cautions — information only, never change the rating
   const C = [];
@@ -1864,15 +1965,15 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   if (mode==="entry" && Array.isArray(window.openTrades)) {
     const mine = window.openTrades.filter(t => String(t.ticker).toUpperCase()===String(sym).toUpperCase());
     if (mine.length) C.unshift(`You already have an open <b>${sym}</b> trade (${mine.map(t=>t.type).join(", ")}) — use <b>POSITION REVIEW</b>, don't add a second one.`);
-    if (ai?.sector) {
+    if (ai?.sector && buyish) { // v2.16 #10: crowding only matters when you might buy
       const same = window.openTrades.filter(t => normSector(t.sector)===normSector(ai.sector) && String(t.ticker).toUpperCase()!==String(sym).toUpperCase());
-      const names = [...new Set(same.map(t=>String(t.ticker).toUpperCase()))];
+      const names = [...new Set(same.map(t=>String(t.ticker).toUpperCase()+" · "+(/real/i.test(t.type)?"Real":"Paper")))]; // v2.16 #13: Real vs Paper
       if (names.length >= 2) C.unshift(`<b>Sector crowding:</b> you already have ${names.length} open <b>${canonSector(ai.sector)}</b> trades (${names.join(", ")}). This would be #${names.length+1} — consider skipping or going paper.`);
       else if (names.length === 1) C.push(`You already hold one other <b>${canonSector(ai.sector)}</b> trade (${names[0]}). A second is fine; a third starts to concentrate risk.`);
     }
     // v2.14: theme crowding (info only)
     const th = themeOf(sym);
-    if (th) {
+    if (th && buyish) {
       const sameT = [...new Set(window.openTrades.filter(t => themeOf(t.ticker)===th && String(t.ticker).toUpperCase()!==String(sym).toUpperCase()).map(t=>String(t.ticker).toUpperCase()+(t.type?` (${t.type})`:"")))];
       if (sameT.length >= 2) C.unshift(`<b>Theme crowding:</b> ${sameT.length} open trades already ride <b>${th}</b> (${sameT.join(", ")}). They tend to fall together on one headline — this would be #${sameT.length+1}. Consider skipping or paper.`);
       else if (sameT.length === 1) C.push(`Same theme as ${sameT[0]} (<b>${th}</b>) — fine, but a third in this theme concentrates risk.`);
@@ -1880,8 +1981,29 @@ const buildGuide = (sym, d, rule, ai, mode) => {
     const unknown = window.openTrades.filter(t=>!t.sector).map(t=>t.ticker);
     if (unknown.length && ai?.sector) C.push(`Sector missing in Trades for: ${[...new Set(unknown)].join(", ")} — fill column X so the check is complete.`);
   }
+  // v2.16 #19: climax-run flag (info)
+  if (mode==="entry" && Array.isArray(d?.bars) && d.bars.length > 130 && price) {
+    const c0 = d.bars[Math.max(0, d.bars.length-252)].c, c6 = d.bars[d.bars.length-126].c;
+    const g12 = (price/c0-1)*100, g6 = (price/c6-1)*100;
+    if (g12 >= 100 || g6 >= 100) C.push(`<b>Climax-run risk:</b> up ${Math.round(Math.max(g12,g6))}% in ${g6>=100?"6":"12"} months. Late-stage moves fail more often — size smaller.`);
+  }
+  // v2.16 #49 + #37: SEC data caveats (info)
+  if (mode==="entry" && ai?.sec && secUsable(ai.sec) && ai.sec.growth !== null) {
+    const g = ai.sec.growth;
+    if ([-50,-66.7,-75,-80,-90].some(x => Math.abs(g - x) < 4)) C.push(`<b>Possible stock split:</b> SEC EPS fell ${Math.round(g)}% — close to a split ratio. SEC numbers aren't split-adjusted; check Finviz "EPS Q/Q".`);
+  }
+  if (mode==="entry" && buyish) { const rv = rule.checks?.fundamentals?.detail?.match(/revenue ([+-]?\d+)%/); if (rv && +rv[1] < 10) C.push(`<b>Sales growth only ${rv[1]}%.</b> Strong leaders usually grow sales too, not just earnings.`); }
+  // v2.16: post-earnings drift setup (info, both modes)
+  const dr = driftSetup(d);
+  if (dr) C.push(dr);
   const warn = C.length ? `<div class="gwarn">⚠ ${C.join("<br>⚠ ")}</div>` : "";
-  return `<ol>${L.map(x=>`<li>${x}</li>`).join("")}</ol>${sizeLine}${warn}`;
+  // v2.16 #59: big "rescan after 4 PM" box while volume is partial
+  const live = mode==="entry" && (d?.volumePartial || d?.marketState==="REGULAR");
+  const timeBox = live ? `<div class="timebox">⏱ <b>Market is open — today's volume isn't final.</b> Don't act on a breakout until you rescan after 4 PM ET.</div>` : "";
+  const gateBox = (mode==="entry" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST") && ai?.marketStatus && ai.marketStatus!=="UPTREND")
+    ? `<div class="gatebox">⛔ <b>PAPER ONLY — market gate ${ai.marketStatus}.</b> Real-money buys need UPTREND. This rule broken cost the most in the 30-day test (MRVL).</div>` : "";
+  const fv = `<div class="gsize"><a href="https://finviz.com/quote.ashx?t=${encodeURIComponent(sym)}" target="_blank" rel="noopener">Open the ${sym} chart on Finviz ↗</a></div>`; // v2.16 #21
+  return `${gateBox}${timeBox}<ol>${L.map(x=>`<li>${x}</li>`).join("")}</ol>${sizeLine}${warn}${fv}`;
 };
 
 const render = (sym, d, rule, ai, mode) => {
@@ -1917,20 +2039,23 @@ const render = (sym, d, rule, ai, mode) => {
     g.textContent=fmtPct(rule.gainPct)+" vs entry $"+fmt(parseFloat($("ep").value));
     g.style.color=rule.gainPct>=0?"var(--green)":"var(--red)";
   }
-  $("stamp").textContent=$("stamp").textContent=meta.label;
+  $("stamp").textContent=meta.label;
+  if (mode==="entry" && key==="SELL") { $("stamp").textContent="DON'T BUY · STAGE 4"; } // v2.16 #57: you don't own it — nothing to sell
   $("stamp").style.color=meta.color; $("stamp").style.borderColor=meta.color;
   $("ticket").style.boxShadow=`0 0 0 1px ${meta.color}55,0 0 44px ${meta.color}18`;
-  $("stampWord").textContent=meta.word;
+  $("stampWord").textContent = (mode==="entry" && key==="SELL") ? "Downtrend — avoid" : meta.word;
   // v2.1: show which kind of buy this is
   const sbadge=$("setupBadge");
-  if (mode==="entry" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST") && (rule.setupType==="BREAKOUT"||rule.setupType==="PULLBACK")) {
-    const isBO = rule.setupType==="BREAKOUT";
-    sbadge.textContent = isBO ? "BREAKOUT BUY" : "PULLBACK BUY · 50-day";
-    sbadge.style.cssText = isBO
-      ? "display:inline-block;color:var(--green);border:2px solid var(--green)"
-      : "display:inline-block;color:var(--amber);border:2px solid var(--amber)";
+  const gateOff = mode==="entry" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST") && ai?.marketStatus && ai.marketStatus!=="UPTREND";
+  if (gateOff) { // v2.16: make the market gate impossible to miss
+    sbadge.textContent = "PAPER ONLY · MARKET " + ai.marketStatus;
+    sbadge.style.cssText = "display:inline-block;color:#E5484D;border:2px solid #E5484D";
+  } else if (mode==="entry" && (rule.rating==="BUY"||rule.rating==="CHECK_FIRST") && rule.setupType==="BREAKOUT") {
+    sbadge.textContent = "BREAKOUT BUY";
+    sbadge.style.cssText = "display:inline-block;color:var(--green);border:2px solid var(--green)";
   } else { sbadge.style.display="none"; }
-  $("scorePill").textContent=rule.score+"/100";
+  // v2.16 #6/#3: a WATCH or a position has no meaningful score
+  $("scorePill").textContent = (mode==="entry" && rule.rating!=="WATCH") ? rule.score+"/100" : "—";
   show("ticket");
 
   // score breakdown
@@ -1949,12 +2074,12 @@ const render = (sym, d, rule, ai, mode) => {
     cats.forEach(([k,label,maxW])=>{
       const chk = rule.checks[k];
       if (!chk) return;
-      const pct = maxW>0 ? (chk.score/maxW)*100 : 0;
+      const pct = (maxW>0 && typeof chk.score==="number" && isFinite(chk.score)) ? (chk.score/maxW)*100 : 0;
       const col = chk.status==="pass"?"var(--green)":chk.status==="neutral"?"var(--amber)":"var(--red)";
       sb.innerHTML += `<div class="score-row">
         <span class="score-name">${label}</span>
         <div class="score-track"><div class="score-fill" style="width:${pct}%;background:${col}"></div></div>
-        <span class="score-num" style="color:${col}">${chk.score}/${maxW}</span>
+        <span class="score-num" style="color:${col}">${(typeof chk.score==="number" && isFinite(chk.score)) ? chk.score : "–"}/${maxW}</span>
       </div>`;
     });
     show("scorePanel"); $("scorePanel").style.display="block";
@@ -2006,6 +2131,8 @@ const render = (sym, d, rule, ai, mode) => {
     if (rule.stopStep===1) rungs.push(["AT +1R","#5B8DB822","var(--blue)","$"+fmt(rule.lvl1),`(raise stop to breakeven $${fmt(rule.lvl1-rule.R)})`]);
     if (rule.stopStep<=2) rungs.push(["AT +2R","#5B8DB822","var(--blue)","$"+fmt(rule.lvl2),"(trailing stop takes over)"]);
     if (d?.sma50) rungs.push(["50-DAY MA","#5E6C7922","var(--muted)","$"+fmt(d.sma50),"(break on heavy vol = exit)"]);
+    if (rule.origStop && rule.stopStep > 1) rungs.push(["SHADOW: ORIGINAL","#5E6C7922","var(--muted)","$"+fmt(rule.origStop),"(what the original-stop rule would use — comparison only, not an order)"]);
+    if (typeof rule.mfe==="number") rungs.push(["WHILE HELD","#5E6C7922","var(--muted)",`best ${fmtPct(rule.mfe)} · worst ${fmtPct(rule.mae)}`,"(from your buy price)"]);
     $("planTitle").textContent="EXIT LADDER";
   }
   if (rungs.length) {
@@ -2052,7 +2179,7 @@ const render = (sym, d, rule, ai, mode) => {
     else if (failed.length) why="Blocked by: "+failed.join(" · ");
     else if (ai?.marketStatus==="CORRECTION") why="Blocked by: market in correction.";
   }
-  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (ai.secSkip ? "AI research skipped to save cost — the price setup is good, but official SEC earnings fail the 25% EPS rule. SEC numbers include one-time items, so tap RUN AI CHECK if you want Claude to look for adjusted earnings." : rule.aiBlock ? "" : ai.aiFailed ? `AI check failed (${ai.reason}) — this rating comes from the price and data rules only. If the error says "invalid x-api-key", re-enter your Anthropic key in the setup bar, then tap RUN AI CHECK for Claude's written review.` : /watchlist/.test(ai.reason||"") ? "Watchlist scan — rules only, no AI cost. Scan this ticker on its own (or tap RUN AI CHECK) for Claude's written review." : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change.")) : ""; // v2.10.2: honest message when AI failed or was skipped by the watchlist
+  const skipNote = ai?.aiSkipped ? (mode==="position" ? "AI commentary skipped to save cost — the exit levels above are calculated by the rules." : (ai.secSkip ? "AI research skipped to save cost — the price setup is good, but official SEC earnings fail the 25% EPS rule. SEC numbers include one-time items, so tap RUN AI CHECK if you want Claude to look for adjusted earnings." : rule.aiBlock ? "" : ai.aiFailed ? `AI check failed (${ai.reason}) — this rating comes from the price and data rules only. If the error says "invalid x-api-key", re-enter your Anthropic key in the setup bar, then tap RUN AI CHECK for Claude's written review.` : /watchlist/.test(ai.reason||"") ? "Watchlist scan — rules only, no AI cost. Scan this ticker on its own (or tap RUN AI CHECK) for Claude's written review." : (rule.rating==="WATCH" ? "AI research skipped to save cost — it runs on the breakout rescan. Earnings, fundamentals or the market can still turn this WATCH into DON'T BUY." : "AI research skipped to save cost — the price rules already rule this stock out, so the rating can't change."))) : ""; // v2.10.2: honest message when AI failed or was skipped by the watchlist
   $("explText").textContent  = (why? why+"\n\n" : "") + (ai?.explanation || skipNote);
   $("aiForceBtn").style.display = ai?.aiSkipped ? "inline-block" : "none";
   $("explText").style.whiteSpace = "pre-line";
@@ -2067,7 +2194,7 @@ const renderLog = () => {
   if (!scanLog.length) { el.innerHTML='<div style="font-size:12px;color:var(--dim);padding:8px 0">No scans yet. Every analysis is saved here automatically.</div>'; return; }
   scanLog.forEach(h=>{
     const m=META[h.verdict]||META.DONT_BUY;
-    const act=h.action?`<span class="log-badge" style="background:${h.action==="Bought"?"#2FBF7122":"#5E6C7922"};color:${h.action==="Bought"?"var(--green)":"var(--muted)"}">${h.action.toUpperCase()}</span>`:"";
+    const act=h.action?`<span class="log-badge" style="background:${String(h.action).startsWith("Bought")?"#2FBF7122":"#5E6C7922"};color:${String(h.action).startsWith("Bought")?"var(--green)":"var(--muted)"}">${h.action.toUpperCase()}</span>`:"";
     el.innerHTML+=`<div class="log-row">
       <span style="font-family:'Archivo',sans-serif;font-weight:900;font-size:13px;min-width:50px">${h.symbol}</span>
       <span style="font-weight:700;letter-spacing:.8px;color:${m.color};min-width:80px;font-size:10px">${m.label}</span>
