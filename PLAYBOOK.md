@@ -1,7 +1,7 @@
 # Signal Desk Playbook
 
 _The one page Claude reads before analyzing any stock or position for Tony. Rules decide; evidence ranks; lessons accumulate._
-_Last updated: Oct 22, 2026 · app v2.14 · 30-day live test 9/29 → 10/29 (rules frozen)_
+_Last updated: Oct 30, 2026 · app v2.16 · day-30 review done 10/29 · next live test Nov 2, 2026 → Jan 29, 2027 (rules frozen again)_
 
 ## 1. How to analyze a stock (every time, in this order)
 1. **Market regime first.** SPY/QQQ vs 50-day + distribution days (app's gate: UPTREND / PRESSURE / CORRECTION). Also note: S&P vs its 200-day; failed index breakout (closed back under a high it just broke); leaders vs average stock (SPY vs RSP). PRESSURE or worse → new buys are **paper only**.
@@ -63,7 +63,32 @@ Status: queued for the November backtest. None changes live rules until it passe
   No version beats SPY in a strong bull market. **Signal Desk is a risk manager and discipline tool, not a market-beater.** The honest setup is a core in SPY and Signal Desk as a smaller satellite whose value shows up mostly in bad markets.
 - **Private EODHD copy:** 2003–2026 daily prices for 979 of 993 S&P members since 2004, delisted names included. It is kept privately offline, not in this repo (EODHD's licence forbids republishing). Future rounds can use it with no subscription.
 
+## 4a. Day-30 live test (9/29 → 10/29) — results and decisions
+**Results (12 trades: 5 real, 7 paper).**
+- **Every trade was a pullback.** Not one breakout triggered in 30 days: the market spent almost the whole month in PRESSURE and few stocks made new highs. The test never exercised the setup with the best evidence.
+- **Closed: 6 losses, −5.3R** (real −$1,303, paper −$3,979). Four of them were pullbacks stopped out on the same day (10/22) when the market dropped: one correlated hit, not four separate bad picks.
+- **Open at day 30: about +6.1R** (LLY ×2 ≈ +2R each, BP and XOM ≈ +1.5R, TGT −0.4R, AMZN −0.8R). **Net ≈ breakeven (+0.06R per trade).** Far too few trades to judge returns.
+- **Market gate:** 10 of 12 trades were entered in PRESSURE. UPTREND scans beat the S&P over 10 days 64% of the time (11 scans); PRESSURE scans 13% (226 scans). Small UPTREND sample, same direction as the backtests.
+- **The 100-point score had no predictive power:** correlation with the 10-day result ≈ 0.06 over 316 scans. Scores 80+ did a little better (32% beat the S&P vs ~12%, 29 scans).
+- **BUY scans beat DON'T BUY scans by ~3 pts over 10 days** (−1.4% vs −4.6% vs the S&P) — a slight edge in the right direction.
+- **Rules followed: 83%** (target 90%+). Misses: FCX (paper) and MRVL (real buy while the gate read PRESSURE, −1.23R). Rule-break trades averaged −1.11R vs −0.77R when the rules were followed.
+
+**Decisions (built into v2.16, 10/29):**
+1. **Breakouts only.** Pullbacks show WATCH (info only) with the exact buy point.
+2. **The market gate is hard to ignore.** A BUY when the gate isn't UPTREND shows "PAPER ONLY"; tapping I BOUGHT IT asks first and logs a rule break.
+3. **Stops: keep A2 live, compare with the original stop.** Position Review shows the "shadow" original stop; decide with the next test's data. (KNSA: A2's breakeven step saved ~1R — the original stop would also have been hit.)
+4. **Sell side gives exact actions:** one ACTION line (price + share count), "raise the stop" = just under the lowest low of the last 5 trading days (never lower), I RAISED MY STOP writes Current Stop to the sheet.
+5. **Retire the guessed score** after Round 8: replace it with a data-driven 0–100 score plus odds from similar past setups (one formula, checked on unseen years).
+
+**Next live test: Nov 2, 2026 → Jan 29, 2027 (about 60 trading days).** Rules frozen at v2.16. Real money only when the gate reads UPTREND; everything else paper. Same logging. Mid-point check ~Dec 1, full review ~Jan 29. Judge returns on this test, not the 30-day one.
+
 ## 5. Lessons learned (add after every review — newest first)
+- **10/29 · Check every holding's earnings date every day in the last week.** AMZN reported after the close on 10/29 while at a loss and 22¢ above its stop; it was flagged only that afternoon and gapped −7% through the stop. v2.16 now puts "SELL HALF BEFORE EARNINGS" in the ACTION line 7 days out.
+- **10/29 · A stop inside the normal earnings swing gets hit before the report.** KNSA's stop was 4% away vs a ±7.7% expected move; it was shaken out the day before the report, then gapped +22%. Decide before the report: trim, hold, or accept it (v2.16 warning).
+- **10/29 · Never pull a stop on a gap.** MRVL gapped through its stop on deal news; the stop sold at the open as planned. "Overreaction" is a guess — buy back only on a new setup.
+- **10/29 · The gate rule exists for a reason.** The one real buy made in PRESSURE (MRVL) was the costliest loss of the test. v2.16 asks before any real buy outside UPTREND.
+- **10/29 · One market drop can stop out several trades at once.** Four pullbacks stopped out on 10/22. Correlated positions are one bet; count themes and the market, not tickers.
+- **10/29 · Vague sell words don't get followed.** "Tighten your stop" left the next step unclear. Every sell message now gives the price, the share count and where to change it.
 - **10/22 · Check the data before believing a result.** 1 in 6 EODHD files had unadjusted splits, bad prints or spliced tickers. Repairing them erased most of Round 6's 'best' edge. Every new data source gets a jump audit first.
 - **10/22 · Chart studies and Fibonacci don't pick stocks.** Across 21 years and ~1.5M signals, RSI, MACD, Bollinger, Ichimoku, Fibonacci and the rest did no better than a random stock bought the same day. Use the chart for trend, entry timing and the stop, not as a reason to buy.
 - **10/22 · Free-data winners lie.** The free-data Round 6 winner lost to SPY on the EODHD data with delisted stocks, and free results moved ~4 pts/yr between two runs. Never act on a free-data result alone.
@@ -134,7 +159,7 @@ Earnings are the biggest single-day risk for a holding. Gaps can jump straight p
 - **Gap down but stop holds** = re-run Position Review after the close; a close below the 50-day on volume → sell (§7).
 - Guidance matters more than the quarter: a beat with a guidance cut often fails.
 
-Upcoming: KNSA 10/27, FCX 10/27 (FOMC 10/27–28 — same days, double event risk).
+Check every holding's next report date at each Position Review; the ACTION line flags it 7 days out (v2.16). FOMC next: Dec 8–9.
 
 ## 9. Setup library (exact definitions)
 Pivot = the price the stock must close above to start a move (usually the top of the base/handle, + a few cents). Volume on the breakout ≥ 1.4× (frozen rule; O'Neil prefers ≥ 1.5×).
@@ -170,14 +195,15 @@ Overall read: ACCUMULATION / leaning / neutral / leaning distribution / DISTRIBU
 | Tag | Count | Examples |
 |---|---|---|
 | Deep or sharp "pullback" bought (really a correction / selling) | 3 | MRVL 10/15 (−26% from high), DDOG & PLTR 10/16 (−7% days) |
+| Pullback entries stopped out (all paper) | 4 · **−4.0R / −$3,979** | ETON 10/19; FCX, MRVL, PWR all on 10/22 (market drop) → fixed: breakouts only (v2.16) |
 | Theme crowding | 1 | MRVL + PWR 10/17 (AI capex) |
-| Buying into a weak / rotating market | 1 | 10/17 leader rotation |
-| Earnings timing | 3 | PWR 10/15; OSCR & AVPT 10/21 (16 days out) |
+| Buying into a weak / rotating market | 2 · **−1.23R / −$1,221** | 10/17 leader rotation; MRVL real buy in PRESSURE 10/28 → fixed: gate guard (v2.16) |
+| Earnings timing | 5 | PWR 10/15; OSCR & AVPT 10/21 (16 days out); KNSA shake-out before 10/27 (≈ −0.1R, missed +22%); AMZN gap through the stop 10/30 (cost to be logged) → fixed: 7-day earnings ACTION + shake-out warning (v2.16) |
 | Missing / lagging data | 3 | CVE foreign filer 10/15; KNSA SEC lag 10/20; ABNB Finviz vs SEC EPS 10/21 |
 | Logging bug | 1 | Entry Price leak (v2.10.1) |
 | Chased extended | 0 | — |
 
-At each review: add the money result per tag (from Trades/Outcomes) — the tag that cost the most gets the next fix.
+At each review: add the money result per tag (from Trades/Outcomes) — the tag that cost the most gets the next fix. **Day-30 result:** pullback entries cost the most (−4.0R), then the gate break (−1.23R); both are fixed in v2.16.
 
 ## 13. Scorecard — Claude's calls (graded at each review)
 Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = strong). Grade at 5 / 10 / 20 trading days vs SPY; "right" = the stock beat SPY for buy/hold calls, lagged it for pass/sell/trim calls. Goal: calls marked 70%+ should be right ~70%+ of the time. If not, I'm overconfident.
@@ -198,19 +224,23 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 | 10/29 | LLY ×2 | Hold through the earnings gap up; raise both stops to $1,287 (A2 +2R trail = high ~$1,408 − 3× ATR $40) | 70% | ~$1,374 | Earnings-day gap up = §8 hold; +2.2R reached; Kids account stop was still at $1,095 (never moved to breakeven) | | | |
 | 10/30 | BRZE | Pass — no buy even on a breakout above $45.95 | 70% | $45.80 | GAAP loss fails the EPS rule; 48% above the 50-day, RSI 84 after a 13× volume day; market PRESSURE | | | |
 
-## 14. Open questions for the 10/29 review
-- Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
-- Did Holding Health scores ≤ 3/5 come before losses?
-- Did BUYs beat DON'T BUYs on 5/10/20-day returns vs SPY (Outcomes tab)?
-- Breakout vs pullback results; UPTREND vs PRESSURE results.
-- Did ACCUMULATION vs DISTRIBUTION footprint reads predict 5/10-day returns?
-- When Claude's market read disagreed with the rules gate (e.g. 10/20: Claude UPTREND, rules PRESSURE), who was right?
-- Scorecard (§13): hit rate by confidence level.
-- Should paper trades switch to "original stop only" (no trail) to test the Round 5 finding live?
-- ~~EODHD run~~ Answered 10/22 (§4): nothing beats SPY in 2017–25. Best = trend template + breakouts only + original stop + S&P above 200-day (≈ SPY in 2017–25, +6 pts/yr in 2005–16).
-- After 10/29: change one rule at a time, with paper trades first. Proposed order: (1) original stop instead of the A2 trail; (2) breakouts only (drop pullback BUYs); (3) a market rule (half size when not UPTREND, or S&P above 200-day). Optional, as a paper test: buy-back after a stop-out.
-- Sizing: what share of the money goes to the Signal Desk satellite vs a SPY core?
+## 14. Open questions for the next reviews (mid-point ~Dec 1 · full review ~Jan 29)
+- **Answered at day 30:** pullbacks vs breakouts (pullbacks → info only), UPTREND vs PRESSURE (gate kept, now guarded), the 100-point score (no predictive power → replace after Round 8), buy-back after a stop-out (no — Round 6).
+- **A2 trail vs original stop:** compare the shadow original stop on every closed trade.
+- **Breakouts:** once the market turns UPTREND, do breakout BUYs beat the S&P over 10/20 days? Does 1.4× vs 1.5×+ volume matter (Fix #35)?
+- **Footprints:** do ACCUMULATION vs DISTRIBUTION reads predict 5/10-day returns?
+- **Earnings tools:** did the 7-day ACTION line and the shake-out warning prevent KNSA/AMZN-type losses?
+- **Scorecard (§13):** hit rate by confidence level — are my 70% calls right ~70% of the time?
+- **Round 8 (November, EODHD data saved offline):** all-US stocks; earnings-gap drift; momentum; 52-week vs latest-base pivots; Graham / Buffett / Lynch styles alone and with trend; Templeton (buying in corrections) and "green during the drop" leaders; strategy correlation (Dalio); sizing (Kelly / half-Kelly); report Sharpe, Sortino, Calmar and beta. Then the data-driven score + odds panel, then the pattern-mining study.
+- **Sizing:** what share of the money goes to the Signal Desk satellite vs a SPY core?
 
 ## 15. Where things are
 App: https://greendoormanagment-ux.github.io/signal-desk/ · Handbook + v3 roadmap: `README.md` · Backtest: `scripts/backtest/`, reports in `backtest/` (real data: `backtest/round6-latest.md`, repaired re-check `round6-clean-latest.md`, studies + Fibonacci `round7-latest.md`) · Decision Log: Google Sheet "Signal_Desk_Decision_Log" (Scans, Trades, Outcomes, What's Working, Fix List).
+## 16. Mentors — how to think (the data still decides the rules)
+- **Method:** Simons, Brown & Mercer — data over experts, small edges repeated · Patterson — clean data first, simple statistics done carefully · Card & Acemoğlu — always compare against a control group; separate cause from coincidence · Tao & Gowers — tell real structure from randomness; with enough data, fake patterns always appear · Scholze, Wiles & Perelman — don't trust a result until it's independently checked, even your own.
+- **Rules:** Tao (compressed sensing) — a few rules that matter beat many that don't · Daubechies & Shiller — look at the data in the right form and time scale · Markowitz & Bogle — simple and low-cost beats complex; the index is the bar to beat.
+- **Risk:** Munger — invert, avoid big mistakes first · Soros & Griffin — what matters is how much you lose when wrong; cut losers fast · Dalio — several bets that don't move together; every mistake becomes a better rule · Icahn's losses — follow what the market does, don't predict it; avoid leverage.
+- **Styles to test (Round 8):** Graham (cheap and safe), Buffett & Munger (quality at a fair price), Lynch (growth at a fair price, PEG), Templeton (buy at maximum pessimism).
+- **Character:** Wiles — persistence through failure · Perelman — truth over credit · Dalio — "I might be wrong."
+
 _This file is public — never put account values, keys, or personal details here._
