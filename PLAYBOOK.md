@@ -196,6 +196,7 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 | 10/29 | MRVL | Keep the stop — let it sell at the open (gap down through the $228.30 stop on the Lumentum deal report); no pulling the stop | 60% | ~$223 pre-market | §8 rule: gap through the stop = sell at the open; deal size (~$80B vs $3.9B cash) means dilution/debt risk could get worse when terms come out; real buy made while the gate read PRESSURE (paper-only rule) | | | |
 | 10/29 | AMZN | Sell at least half before today's close (earnings after the bell); keep $243.58 stop on the rest | 70% | ~$243.80 | At a loss (−6%) going into earnings, $0.22 above the stop → a normal gap down fills well past it (§8: no full position through a report at a loss) | | | |
 | 10/29 | LLY ×2 | Hold through the earnings gap up; raise both stops to $1,287 (A2 +2R trail = high ~$1,408 − 3× ATR $40) | 70% | ~$1,374 | Earnings-day gap up = §8 hold; +2.2R reached; Kids account stop was still at $1,095 (never moved to breakeven) | | | |
+| 10/30 | BRZE | Pass — no buy even on a breakout above $45.95 | 70% | $45.80 | GAAP loss fails the EPS rule; 48% above the 50-day, RSI 84 after a 13× volume day; market PRESSURE | | | |
 
 ## 14. Open questions for the 10/29 review
 - Do pullback BUYs after sharp drops (Day Change ≤ −4%) do worse? (Scans: Day Change %, 5D Change %, Volume Pace)
