@@ -3,7 +3,7 @@
 Stock screener for Tony's 30-day rules test (O'Neil breakouts/pullbacks, Weinstein stages, chandelier stops).
 **Rules decide; Claude only explains.** Live app: https://greendoormanagment-ux.github.io/signal-desk/
 
-_Last updated: Oct 20, 2026 · app v2.11 · sheet script v8_
+_Last updated: Oct 30, 2026 · app v2.16 · sheet script v11 · next live test Nov 2, 2026 → Jan 29, 2027_
 
 ## Mission
 > *Signal Desk finds high-quality setups, sizes the risk, enforces the exits, and keeps score honestly — so every rule has to earn its place.*
@@ -76,5 +76,7 @@ Goal: keep improving real outcomes by putting each **research-proven** technical
 ## History
 - v2.7 SEC EPS check · v2.7.1 nightly eps.json · v2.7.2 big-jump warning · v2.8 rules-based market gate, RS, earnings calendar (comparison week vs Claude from Oct 10) · v2.8.1 logs SEC EPS when AI skipped · v2.8.2 no false entry-price warning · v2.8.3 logs breakout-day volume · v2.9 new sheet key, account codes, sheet connection shares no notes · v2.9.1 one shared earnings day count (log = rule), data age in Notes · v2.9.2 logs each check + pivot/stop/risk + SPY/QQQ detail; nightly history snapshots + data sanity check · v2.9.3 logs base depth/length, 50-day slope, 5-day volume, dollar volume, RSP (Grok review; Fix List #52–60)
 - v2.9.8 Rule Summary · v2.10 Holding Health in Position Review · v2.10.1 Entry Price leak fixed · v2.10.2 honest AI-failed message · v2.10.3 liquidity judged in dollars · v2.11 sharp-drop warning + Day/5D change + volume pace (all logging/info only — rules frozen for the test)
+- v2.12 institutional footprints · v2.13 sell signals + earnings checkpoint · v2.14 market warnings + v3 regime preview · v2.14.1 expected move in $ · v2.15 I SOLD SOME (sheet script v10)
+- **v2.16 (10/29, after the day-30 review):** breakouts only (pullbacks → WATCH info) · "PAPER ONLY" market-gate guard + confirm before a real buy outside UPTREND · ACTION line in Position Review with exact price and share count · I RAISED MY STOP (sheet script v11, never lower) · earnings shake-out warning + gap-loss in $ · post-earnings drift helper · shadow original stop + best/worst while held · trail measured from the day after the buy · bug sweep (WATCH score, RS "–", citation text, Stage 4 label, crowding only on BUYs, Real vs Paper, Finviz link, rescan box, climax/split/sales warnings, gap risk in sizing)
 - The sheet key lives only in each device's setup bar (never in this public file) and must match `SECRET` in the sheet script. If it's ever changed, change both and publish a new script version.
 - Nightly check (Oct 20): if SEC's data feed is behind for a watched stock but the company did file (e.g. KNSA Q2), the run logs a note instead of failing.
