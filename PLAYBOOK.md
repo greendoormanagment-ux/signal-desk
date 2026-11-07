@@ -224,6 +224,7 @@ Every straight take gets a row. Confidence = how sure (50% = coin flip, 80% = st
 | 10/29 | AMZN | Sell at least half before today's close (earnings after the bell); keep $243.58 stop on the rest | 70% | ~$243.80 | At a loss (−6%) going into earnings, $0.22 above the stop → a normal gap down fills well past it (§8: no full position through a report at a loss) | | | |
 | 10/29 | LLY ×2 | Hold through the earnings gap up; raise both stops to $1,287 (A2 +2R trail = high ~$1,408 − 3× ATR $40) | 70% | ~$1,374 | Earnings-day gap up = §8 hold; +2.2R reached; Kids account stop was still at $1,095 (never moved to breakeven) | | | |
 | 10/30 | BRZE | Pass — no buy even on a breakout above $45.95 | 70% | $45.80 | GAAP loss fails the EPS rule; 48% above the 50-day, RSI 84 after a 13× volume day; market PRESSURE | | | |
+| 11/06 | LLY (T4k) | Follow v2.16 ACTION: sell 4 of 8.465 shares at the Mon 11/9 open; stop on the rest to $1,333.20; run the same review on the Kids row | 60% | $1,354.00 | 3 warning signs: worst day of the move (−3.8% on 1.9× volume, 11/5), distribution cluster, market CORRECTION; +14.6% from entry banked on half; footprints still ACCUMULATION | | | |
 
 ## 14. Open questions for the next reviews (mid-point ~Dec 1 · full review ~Jan 29)
 - **Answered at day 30:** pullbacks vs breakouts (pullbacks → info only), UPTREND vs PRESSURE (gate kept, now guarded), the 100-point score (no predictive power → replace after Round 8), buy-back after a stop-out (no — Round 6).
