@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16</title>
+<title>Signal Desk v2.16.1</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -147,7 +147,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.1<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -191,6 +191,8 @@ input,button{font-family:inherit}
 
 <div id="batchRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-6px 0 14px;font-size:11px;color:var(--muted)">
   <button class="btn-sm" id="batchBtn">SCAN WATCHLIST</button>
+  <button class="btn-sm" id="batchPause" style="display:none">PAUSE</button>
+  <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="batchAuto"> stop on BUY / WATCH</label>
   <a id="batchEdit" style="cursor:pointer;text-decoration:underline">edit list</a>
   <span id="batchStat">Same rules, no AI cost · best once a day after 4 PM ET · logged as "watchlist"</span>
 </div>
@@ -422,7 +424,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16";
+const APP_VERSION = "v2.16.1"; // v2.16.1 = v2.16 rules + watchlist PAUSE / auto-pause (display only, no rule change)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -1826,32 +1828,48 @@ $("batchEdit").onclick = () => {
   if (v.trim()) store.set("sd2-watch", v.trim()); else localStorage.removeItem("sd2-watch");
   $("batchStat").textContent = `${watchList().length} stocks saved`;
 };
-let batchStop = false;
+let batchStop = false, batchPaused = false, batchCur = "";
+// v2.16.1: PAUSE / RESUME — the current stock stays on screen until you resume. Auto-pause stops on BUY / CHECK FIRST / WATCH.
+try { $("batchAuto").checked = store.get("sd2-autopause") !== "off"; } catch (e) {}
+$("batchAuto").onchange = () => store.set("sd2-autopause", $("batchAuto").checked ? "on" : "off");
+const setPause = (on, why) => {
+  batchPaused = on; $("batchPause").textContent = on ? "RESUME" : "PAUSE";
+  if (on) $("batchStat").textContent = why || `Paused on ${batchCur} — tap RESUME to continue`;
+};
+$("batchPause").onclick = () => setPause(!batchPaused);
+const batchWait = async () => { while (batchPaused && !batchStop) await new Promise(r => setTimeout(r, 300)); };
 $("batchBtn").onclick = async () => {
   if (window.__batchRun) { batchStop = true; $("batchBtn").textContent = "STOPPING…"; return; }
   if (!store.get("sd2-tkey")) { $("batchStat").textContent = "Add your Twelve Data key first (setup bar)."; return; }
   if (mode !== "entry") document.querySelector('.tab[data-m="entry"]').click();
   const list = watchList(); let done = 0, failed = [];
-  window.__batchRun = true; batchStop = false; $("batchBtn").textContent = "STOP";
+  window.__batchRun = true; batchStop = false; $("batchBtn").textContent = "STOP"; setPause(false); show("batchPause");
   try {
     for (let i = 0; i < list.length && !batchStop; i++) {
-      const sym = list[i];
+      const sym = list[i]; batchCur = sym;
+      await batchWait(); if (batchStop) break;
       for (let attempt = 0; attempt < 2; attempt++) {
         $("batchStat").textContent = `Scanning ${sym} (${i+1}/${list.length})…`;
         const before = scanLog[0]?.id;
         $("sym").value = sym; window.__tdErr = null;
         await $("goBtn").onclick();
-        if (scanLog[0]?.id !== before && scanLog[0]?.symbol === sym) { done++; break; }
+        if (scanLog[0]?.id !== before && scanLog[0]?.symbol === sym) {
+          done++;
+          const v = scanLog[0].verdict;
+          if ($("batchAuto").checked && ["BUY", "CHECK_FIRST", "WATCH"].includes(v) && i < list.length - 1)
+            setPause(true, `Paused: ${sym} rated ${v === "CHECK_FIRST" ? "CHECK FIRST" : v} (${i+1}/${list.length}) — read it, then tap RESUME`);
+          break;
+        }
         if (/credit|limit|429/i.test(window.__tdErr || "") && attempt === 0) {
           for (let s = 61; s > 0 && !batchStop; s--) { $("batchStat").textContent = `Free-plan limit — waiting ${s}s, then retrying ${sym}…`; await new Promise(r=>setTimeout(r,1000)); }
           continue;
         }
         failed.push(sym); break;
       }
-      if (i < list.length - 1 && !batchStop) for (let s = 16; s > 0 && !batchStop; s--) { $("batchStat").textContent = `${done}/${list.length} done · next in ${s}s`; await new Promise(r=>setTimeout(r,1000)); }
+      if (i < list.length - 1 && !batchStop) for (let s = 16; s > 0 && !batchStop; s--) { await batchWait(); if (batchStop) break; $("batchStat").textContent = `${done}/${list.length} done · next in ${s}s · tap PAUSE to keep ${sym} on screen`; await new Promise(r=>setTimeout(r,1000)); }
     }
   } finally {
-    window.__batchRun = false; $("batchBtn").textContent = "SCAN WATCHLIST";
+    window.__batchRun = false; $("batchBtn").textContent = "SCAN WATCHLIST"; batchPaused = false; $("batchPause").textContent = "PAUSE"; hide("batchPause");
     $("batchStat").textContent = `${batchStop ? "Stopped. " : "Finished. "}${done} scans logged` + (failed.length ? ` · no data: ${failed.join(", ")}` : "");
   }
 };
