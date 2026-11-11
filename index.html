@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16.1</title>
+<title>Signal Desk v2.16.2</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -99,6 +99,7 @@ input,button{font-family:inherit}
 .nml-divider{border:none;border-top:1px dashed var(--border2);margin:4px 0}
 /* action buttons */
 .act-row{display:none;gap:8px;margin-bottom:12px}
+.wl-btn{flex:1;min-height:44px;border-radius:7px;cursor:pointer;font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:1.2px;font-size:11.5px;border:1px solid var(--border2);background:var(--bg3);color:var(--dim)}
 .act-btn{flex:1;min-height:44px;border-radius:7px;cursor:pointer;font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:1.2px;font-size:11.5px;border:1px solid var(--border2);background:var(--bg3);color:var(--dim);transition:all .15s}
 /* panel */
 .panel{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 16px;margin-bottom:12px}
@@ -147,7 +148,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16.1<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.2<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -249,6 +250,7 @@ input,button{font-family:inherit}
 <div class="act-row" id="actRow">
   <button class="act-btn" data-a="Bought">I BOUGHT IT</button>
   <button class="act-btn" data-a="Passed">I PASSED</button>
+  <button class="wl-btn" id="wlBtn">+ WATCHLIST</button>
 </div>
 
 <!-- v2.16: one plain ACTION line for holdings (exact price + shares) -->
@@ -424,7 +426,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16.1"; // v2.16.1 = v2.16 rules + watchlist PAUSE / auto-pause (display only, no rule change)
+const APP_VERSION = "v2.16.2"; // v2.16.x = v2.16 rules + display-only additions: watchlist PAUSE / auto-pause (.1), one-tap + WATCHLIST (.2)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -1828,6 +1830,20 @@ $("batchEdit").onclick = () => {
   if (v.trim()) store.set("sd2-watch", v.trim()); else localStorage.removeItem("sd2-watch");
   $("batchStat").textContent = `${watchList().length} stocks saved`;
 };
+// v2.16.2: one-tap add/remove of the scanned stock to the watchlist (display only, no rule change)
+const wlRefresh = (sym) => {
+  const b = $("wlBtn"); if (!b) return; const on = watchList().includes(sym);
+  b.textContent = on ? "✓ ON WATCHLIST" : "+ WATCHLIST"; b.dataset.sym = sym;
+  b.style.borderColor = on ? "#2FBF71" : "var(--border2)"; b.style.color = on ? "#2FBF71" : "var(--dim)"; b.style.background = on ? "#2FBF7122" : "var(--bg3)";
+};
+$("wlBtn").onclick = () => {
+  const sym = String($("wlBtn").dataset.sym || "").toUpperCase(); if (!sym) return;
+  const list = watchList(), on = list.includes(sym);
+  if (on && !window.confirm(`Remove ${sym} from your watchlist?`)) return;
+  const next = on ? list.filter(x => x !== sym) : [...list, sym];
+  store.set("sd2-watch", next.join(" ")); wlRefresh(sym);
+  $("batchStat").textContent = `${on ? sym + " removed" : sym + " added"} · ${next.length} stocks on the watchlist`;
+};
 let batchStop = false, batchPaused = false, batchCur = "";
 // v2.16.1: PAUSE / RESUME — the current stock stays on screen until you resume. Auto-pause stops on BUY / CHECK FIRST / WATCH.
 try { $("batchAuto").checked = store.get("sd2-autopause") !== "off"; } catch (e) {}
@@ -2129,7 +2145,7 @@ const render = (sym, d, rule, ai, mode) => {
   // action buttons
   if (mode==="entry") {
     document.querySelectorAll(".act-btn").forEach(x=>{x.style.borderColor="var(--border2)";x.style.background="var(--bg3)";x.style.color="var(--dim)";x.textContent=x.dataset.a==="Bought"?"I BOUGHT IT":"I PASSED";});
-    $("actRow").style.display="flex";
+    $("actRow").style.display="flex"; wlRefresh(sym);
   }
 
   // v2.4: plain-language next steps
