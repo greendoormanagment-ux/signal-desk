@@ -1,7 +1,18 @@
 # Signal Desk Playbook
 
 _The one page Claude reads before analyzing any stock or position for Tony. **Rules decide. Data explains. Research validates.** No guessed weights, no invented probabilities; a new signal earns a role only by proving itself on unseen data, otherwise it stays info only. **No signal earns authority until it earns it through out-of-sample evidence** — that includes RS, moving averages and footprints. A great backtest found mid-test waits for the next version; the live test is never changed._
-_Last updated: Oct 30, 2026 · app v2.16 · day-30 review done 10/29 · next live test Nov 2, 2026 → Jan 29, 2027 (rules frozen again)_
+_Last updated: Nov 11, 2026 · app v2.16.3 · live test Nov 2, 2026 → Jan 29, 2027 (execution-discipline test) · every rule tracked in `backtest/rule-register.md`_
+
+## 0. How Signal Desk improves (agreed 11/11/2026 — read first)
+- **Data builds our own style.** O'Neil, Weinstein and the chandelier stop were only a starting point; no author's rules are protected. So far the data has made the system simpler than O'Neil: original stop, no selling on warning signs or before earnings, let the winners run.
+- **Champion vs challenger.** The live rules are the champion. A challenger is tested **one change at a time**, with its rules **locked on GitHub before it runs**, built on 2005–16 and checked on 2017–25. It replaces the champion only if it is clearly better in both. Otherwise the champion stays.
+- **The burden of proof runs both ways.** Inherited rules must earn their place too: every rule the app uses is in `backtest/rule-register.md` with its evidence (supported / failed / not proven / untested / info only). An untested rule gets a test date; a new instruction is added there before it ships.
+- **Test bigger alternatives, not only tweaks.** Whole systems compete on the same data and the same bar: **SPY buy-and-hold (the bar to beat — if Signal Desk can't beat it after costs, SPY wins)**, pure momentum ranking, core SPY + Signal Desk satellite.
+- **Rules interact.** After several accepted changes, the whole new package is re-tested as one system before it goes live.
+- **Protect the out-of-sample data.** 2017–25 has now been checked many times, so it is no longer fully "unseen". **2026 data is held back** as a final one-time check for the next version, and the live test is the ultimate out-of-sample test.
+- **What "better" means (fixed):** 1) return vs SPY after costs, 2) max drawdown, 3) consistency across years and market regimes. When results are close, **the simpler rule wins**.
+- **Results that show no effect count.** They are reported, never dropped, and an inconclusive result is not permission to lower the standard.
+- **Live changes:** only by a dated amendment, decided by Tony on the data (e.g. v2.16.3). The colleague reviews and advises; good ideas from anyone are taken on their merits.
 
 ## 1. How to analyze a stock (every time, in this order)
 1. **Market regime first.** SPY/QQQ vs 50-day + distribution days (app's gate: UPTREND / PRESSURE / CORRECTION). Also note: S&P vs its 200-day; failed index breakout (closed back under a high it just broke); leaders vs average stock (SPY vs RSP). PRESSURE or worse → new buys are **paper only**.
