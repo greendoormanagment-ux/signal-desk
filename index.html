@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16.2</title>
+<title>Signal Desk v2.16.3</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -148,7 +148,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16.2<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.3<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -426,7 +426,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16.2"; // v2.16.x = v2.16 rules + display-only additions: watchlist PAUSE / auto-pause (.1), one-tap + WATCHLIST (.2)
+const APP_VERSION = "v2.16.3"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -590,7 +590,7 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
     const below = d.sma50 ? p < d.sma50 : null;
     const fired = below === null ? null : !!(hit && below);
     S.push({ k: "50-day break on volume", fired, w: 2,
-      t: fired ? `closed below the 50-day on ${hit.date} on ${r1(hit.mult)}× normal volume, still below ($${fmt(d.sma50)}). Playbook: sell at least half` : below ? `below the 50-day ($${fmt(d.sma50)}) but not on heavy volume — watch` : `above the 50-day ($${d.sma50 ? fmt(d.sma50) : "?"})` });
+      t: fired ? `closed below the 50-day on ${hit.date} on ${r1(hit.mult)}× normal volume, still below ($${fmt(d.sma50)}). info only (v2.16.3: selling or tightening on warning signs lowered results in the 11/11 backtest)` : below ? `below the 50-day ($${fmt(d.sma50)}) but not on heavy volume — watch` : `above the 50-day ($${d.sma50 ? fmt(d.sma50) : "?"})` });
   }
   // 3. Climax run: big run, then the fastest week of the move / nearly every day up / exhaustion gap / far above the 200-day
   {
@@ -613,13 +613,13 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
     for (let i = runStart; i < n; i++) { const g = pct(b[i].c, b[i - 1].c); if (g < worst.g) worst = { g, i }; }
     const fired = worst.i >= n - 3 && worst.g <= -3 && av && b[worst.i].v > av;
     S.push({ k: "Worst day of the move", fired: !!fired, w: 1,
-      t: fired ? `${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)} (${r1(b[worst.i].v / av)}× volume) — biggest drop since the move began. Playbook: raise the stop (see ACTION) or sell half` : worst.i >= 0 ? `biggest drop of the move ${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)}` : "no down days in the move" });
+      t: fired ? `${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)} (${r1(b[worst.i].v / av)}× volume) — biggest drop since the move began — info only (v2.16.3: selling or tightening on warning signs lowered results in the 11/11 backtest)` : worst.i >= 0 ? `biggest drop of the move ${r1(worst.g)}% on ${String(b[worst.i].date).slice(0, 10)}` : "no down days in the move" });
   }
   // 5. Distribution cluster: 3+ down days on above-average volume in the last 10 sessions
   {
     let dist = 0; for (let i = n - 10; i < n; i++) if (b[i].c <= b[i - 1].c * 0.998 && av && b[i].v > av) dist++;
     S.push({ k: "Distribution cluster", fired: dist >= 3, w: 1,
-      t: `${dist} heavy-volume down day${dist === 1 ? "" : "s"} in the last 10 sessions${dist >= 3 ? ". Playbook: raise the stop (see ACTION), no adding" : ""}` });
+      t: `${dist} heavy-volume down day${dist === 1 ? "" : "s"} in the last 10 sessions${dist >= 3 ? " — no adding; " + "info only (v2.16.3: selling or tightening on warning signs lowered results in the 11/11 backtest)" : ""}` });
   }
   // 6. Stage change (Weinstein): 150-day (~30-week) line flat/falling AND price below it
   {
@@ -633,11 +633,11 @@ const sellSignals = (d, entryPriceStr, entryDateStr, mktStatus) => {
   {
     const fired = mktStatus ? /PRESSURE|CORRECTION/.test(mktStatus) : null;
     S.push({ k: "Market", fired, w: mktStatus === "CORRECTION" ? 2 : 1,
-      t: mktStatus ? `${mktStatus}${fired ? " — raise stops (see ACTION), no adding" : ""}` : "not available" });
+      t: mktStatus ? `${mktStatus}${fired ? " — no new buys, no adding (info only)" : ""}` : "not available" });
   }
   const on = S.filter(x => x.fired === true), pts = on.reduce((s, x) => s + x.w, 0);
   const low5 = Math.min(...b.slice(n - 5).map(x => x.l || x.c)); // v2.16: "raise the stop" = just under the lowest low of the last 5 trading days
-  const read = pts === 0 ? "No sell warnings" : pts === 1 ? "1 warning — watch closely" : pts <= 3 ? `${on.length} warning${on.length > 1 ? "s" : ""} — raise your stop (see ACTION)` : `${on.length} warnings — sell at least half (see ACTION)`;
+  const read = pts === 0 ? "No sell warnings" : pts === 1 ? "1 warning — watch closely" : pts <= 3 ? `${on.length} warning${on.length > 1 ? "s" : ""} — info only, your stop rule decides` : `${on.length} warnings — info only, your stop rule decides (v2.16.3)`;
   return { S, on, read, pts, low5 };
 };
 // Earnings checkpoint (Playbook §8): gain since entry vs the expected earnings move
@@ -658,9 +658,9 @@ const earningsCheck = (d, entryPriceStr, cal, stopStr, sym) => {
   let call, cls;
   if (days > 14) { call = `Next report in ${days} days — the checkpoint opens 14 days before`; cls = "info"; }
   else if (gain === null) { call = "Enter your buy price to run the cushion test"; cls = "info"; }
-  else if (gain < 0) { call = "At a loss into the report — don't hold a full position (trim to half or less)"; cls = "warn"; }
+  else if (gain < 0) { call = "At a loss into the report — info only: hold, your stop stays your protection (v2.16.3: selling before earnings lowered results in the backtest)"; cls = "warn"; }
   else if (exp !== null && gain >= exp) { call = "Cushion is bigger than the expected move — OK to hold the full position"; cls = "ok"; }
-  else if (exp !== null) { call = "Cushion is smaller than the expected move — trim to half before the report"; cls = "warn"; }
+  else if (exp !== null) { call = "Cushion is smaller than the expected move — info only: hold, your stop stays your protection (v2.16.3)"; cls = "warn"; }
   else { call = "Expected move unknown — add your broker's implied move"; cls = "info"; }
   const cs = parseFloat(stopStr), worst = exp !== null ? p * (1 - exp / 100) : null;
   const gapNote = worst !== null && cs > 0 ? (worst < cs ? `<br>A gap down of that size ($${fmt(worst)}) would open <b>below your stop $${fmt(cs)}</b> — the stop won't protect you.` : `<br>A gap down of that size ($${fmt(worst)}) stays above your stop $${fmt(cs)}.`) : "";
@@ -746,23 +746,19 @@ const drawAction = (sym, d, rule, sig, ec) => {
   // the stop to raise to: rule A2's stop, and/or "just under the lowest low of the last 5 trading days" when warnings say raise it
   let to = 0, why = "";
   if (rule.stopAdvice === "raise" && rule.appStop < price) { to = rule.appStop; why = ["", "original stop", "breakeven — it traded at +1R", "trailing stop (high since entry − 3× daily range)"][rule.stopStep] || "rule A2"; }
-  const warnRaise = sig && (sig.pts >= 2 || rule.status === "TIGHTEN_STOP") && sig.low5 > 0;
-  if (warnRaise) { const lv = Math.floor((sig.low5 - 0.01) * 100) / 100; if (lv > to && lv < price * 0.995) { to = lv; why = "just under the lowest low of the last 5 trading days (warning signs)"; } }
+  // v2.16.3 (amendment 11/11): no more stop-raise on warning signs — backtest round8d: it lowered R per trade (only the stop rule raises the stop)
   if (!(to > cs + 0.005)) to = 0;
   const raiseLine = to ? `Raise your stop to <b>$${fmt(to)}</b>${cs ? ` (from $${fmt(cs)})` : ""} — ${why}. At your broker, change the stop order to $${fmt(to)}, then tap <b>I RAISED MY STOP</b> below.` : "";
   let col = "#30A46C", head = "", lines = [];
   if (rule.status === "NO_DATA") { col = "#8FB6DA"; head = "No call — no live price came back"; lines.push("Your stop order at the broker still protects you. Rescan in a minute."); }
   else if (rule.status === "SELL_ALL") { col = "#E5484D"; head = `SELL ${sh ? "ALL " + sh + " SHARES" : "THE WHOLE POSITION"}`; lines.push(rule.sellReason || "The sell rule triggered."); lines.push("Then log it with <b>I SOLD SOME</b> (ALL, your fill price, reason \"Stop hit\" or \"Sell signal\") and cancel any open stop order."); }
-  else if (ec && ec.days <= 7 && ec.cls === "warn") { col = "#E8A33D"; head = `SELL HALF BEFORE EARNINGS: ${sh ? half + " shares" : "half your shares"}`;
-    lines.push(`${ec.call}. Report ${ec.date}: sell by the close on <b>${tradingDayBefore(ec.date)}</b> (or by the close on ${ec.date} if it reports after the bell).`);
-    lines.push(`Then change your stop order to the ${sh ? sh - half + " shares" : "shares"} you keep${to ? ` at <b>$${fmt(to)}</b>` : cs ? ` at $${fmt(cs)}` : ""}, and log the sale with <b>I SOLD SOME</b> (reason "Trim before earnings").`); }
-  else if (sig && sig.pts >= 4) { col = "#E5484D"; head = `SELL HALF: ${sh ? half + " shares" : "half your shares"} today`;
-    lines.push(`${sig.on.length} warning signs: ${sig.on.map(x => x.k).join(", ")}.`); if (raiseLine) lines.push(`On the shares you keep: ${raiseLine}`); lines.push("Log the sale with <b>I SOLD SOME</b> (reason \"Sell signal\")."); }
+  // v2.16.3 (amendment 11/11): SELL HALF on warning signs and SELL HALF BEFORE EARNINGS removed as instructions — backtest round8d: both lowered R per trade
   else if (rule.status === "SCALE_OUT") { col = "#30A46C"; head = `TAKE SOME PROFIT: sell ${sh ? third + " shares" : "a third"} (optional)`;
     lines.push(`Up ${fmtPct(rule.gainPct)} — the +20% scale-out rule (still being tested; letting it run is also fine).`); if (raiseLine) lines.push(raiseLine); }
-  else if (to) { col = "#E8A33D"; head = `RAISE YOUR STOP TO $${fmt(to)}`; lines.push(raiseLine); if (sig?.on?.length) lines.push(`Warning signs: ${sig.on.map(x => x.k).join(", ")}.`); }
-  else { head = "NO ACTION — keep holding"; lines.push(cs ? `Stop stays at <b>$${fmt(cs)}</b>. Check it's live at your broker.` : `Make sure a stop order is live at your broker${rule.appStop ? ` (rule stop $${fmt(rule.appStop)})` : ""}.`); lines.push("Next check: Monday or Thursday, or after any big move."); }
-  if (ec && ec.days > 7 && ec.days <= 14 && !/SELL/.test(head)) lines.push(`Earnings ${ec.date} (${ec.days} days): run the cushion check here 7 days before.`);
+  else if (to) { col = "#E8A33D"; head = `RAISE YOUR STOP TO $${fmt(to)}`; lines.push(raiseLine); }
+  else { head = "NO ACTION — keep holding"; lines.push(cs ? `Stop stays at <b>$${fmt(cs)}</b>. Check it's live at your broker.` : `Make sure a stop order is live at your broker${rule.appStop ? ` (rule stop $${fmt(rule.appStop)})` : ""}.`); lines.push("Next check: after the close (4 PM ET) each trading day — the stop rule updates daily."); }
+  if (sig?.on?.length && !/SELL ALL|SELL THE WHOLE/.test(head)) lines.push(`Warning signs (info only — no sell or stop change): ${sig.on.map(x => x.k).join(", ")}.`);
+  if (ec && ec.days <= 14 && !/SELL ALL|SELL THE WHOLE/.test(head)) lines.push(`Earnings ${ec.date} (${ec.days} day${ec.days === 1 ? "" : "s"}): info only — hold through it; your stop order stays your protection. A gap down can open below the stop.`);
   // I RAISED MY STOP — writes Current Stop to the Trades sheet (never lower)
   const btn = t ? `<div style="margin-top:10px;font-size:12px">I RAISED MY STOP to $<input id="rsPx" class="inp sm" inputmode="decimal" style="display:inline-block;width:86px;padding:4px 6px;font-size:12px" value="${to ? to.toFixed(2) : ""}"> <button class="btn-sm" id="rsGo" style="padding:5px 10px">SAVE TO SHEET</button> <span id="rsMsg"></span></div>` : "";
   $("actionBox").style.borderColor = col;
@@ -1941,7 +1937,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       L.push(`<b>Decide: real money or paper?</b>`);
       L.push(`<b>Real:</b> tap I BOUGHT IT only after you buy. Your 24-hour rule: rescan tomorrow — if it's still BUY and inside the buy zone, buy ${shares||"the sized"} shares and place the <b>$${fmt(rule.stopLoss)}</b> stop the same day.`);
       L.push(`<b>Paper:</b> tap I PASSED, then ${tradeRow("Paper")} Rules Followed = Y.`);
-      L.push(`Set a price alert at the stop <b>$${fmt(rule.stopLoss)}</b>, and add ${sym} to your Monday/Thursday Position Reviews.`);
+      L.push(`Set a price alert at the stop <b>$${fmt(rule.stopLoss)}</b>, and add ${sym} to your daily after-close Position Reviews.`);
     } else if (r==="CHECK_FIRST") {
       L.push(`<b>Not a BUY until you verify.</b> Open finviz.com and search ${sym}.`);
       L.push(`<b>EPS Q/Q</b> must be <b>25% or higher</b>.`);
@@ -1970,7 +1966,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
   } else {
     const st = rule.status;
     const stopOk = stop && price && stop < price;
-    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopAdvice()) L.push(stopAdvice()); else if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again Monday/Thursday.`); }
+    if (st==="HOLD") { L.push(`<b>Keep it.</b> Trend intact.`); if (stopAdvice()) L.push(stopAdvice()); else if (stopOk) L.push(`Your stop should be at least <b>$${fmt(stop)}</b> — raise it if it's lower; never lower it.`); L.push(`Review again after tomorrow's close.`); }
     else if (st==="TIGHTEN_STOP") {
       L.push(`<b>Warning:</b> ${rule.trendNote || `price is below its 50-day line ($${fmt(d?.sma50)}) — the trend is weakening`}.`);
       if (stopAdvice()) L.push(stopAdvice());
