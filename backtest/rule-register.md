@@ -38,6 +38,14 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | 10 positions, 1% risk each, max 20% per position | ⬜ | portfolio capacity 10 / 15 / 20 → **Nov 30** |
 | Which signals get the slots (current: score order) | ⬜ | ranking test, locked 11/11 → **Nov 23** |
 
+## Whole-system challengers (same data, same bar)
+| Challenger | Status | When |
+| --- | --- | --- |
+| SPY buy-and-hold (the bar to beat) | in every report | S&P version ≈ SPY; all-US trails it (Round 8 s1) |
+| Pure momentum ranking (strongest stocks, rebalanced monthly) | ⬜ | → **Nov 30** |
+| Core SPY + Signal Desk satellite | ⬜ | → **Nov 30** |
+| Next-version package re-tested as one system | ⬜ | before it goes live; final check on held-back 2026 data |
+
 ## App fixes (not rules — next version)
 | Fix | Found | Status |
 | --- | --- | --- |
