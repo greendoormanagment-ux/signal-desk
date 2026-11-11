@@ -57,3 +57,5 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | "Check operating EPS" warning when official EPS fails | 11/07 | after the Nov 16 EPS test |
 | Watchlist PAUSE / auto-pause | 11/10 | ✅ done (v2.16.1) |
 | One-tap + WATCHLIST | 11/10 | ✅ done (v2.16.2) |
+| WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | next version |
+| SCALE_OUT keeps prompting after a partial sale was logged | 11/11 | next version |
