@@ -58,4 +58,4 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Watchlist PAUSE / auto-pause | 11/10 | ✅ done (v2.16.1) |
 | One-tap + WATCHLIST | 11/10 | ✅ done (v2.16.2) |
 | WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | next version |
-| SCALE_OUT keeps prompting after a partial sale was logged | 11/11 | next version |
+| App doesn’t know a position was already trimmed (SCALE_OUT keeps prompting) — fix: sheet script returns any closed row with the same ticker + account + entry date (date, shares, reason); app shows “already took profit on [date], the rest rides with the stop” | 11/11 | next version (display only) |
