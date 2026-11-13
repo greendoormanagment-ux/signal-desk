@@ -13,6 +13,7 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Breakout volume ≥ 1.4× average | ⬜ | never varied (Fix #35) → **Nov 16** |
 | Max 5% above the pivot | ⬜ | never varied → **Nov 16** |
 | Market gate: no buys in CORRECTION | 🟡 | used in every backtest as the base; stricter gates not confirmed (Round 8 s1) |
+| Market gate DEFINITION (SPY + QQQ vs their 50-day lines, 5+ distribution days in 25 sessions, 5% expiry, both indexes must agree) | ⬜ | inherited from O’Neil, never varied → **Nov 30**: compare with slower/faster versions (e.g. 200-day based, 3 vs 5 distribution days, SPY only) |
 | Real money only in UPTREND (PRESSURE = paper only) | 🟡 | `round8e-latest.md` (11/11): UPTREND-only had the higher return in all 4 comparisons (+0.7 to +4.1 pts/yr); drawdowns mixed → inconclusive by the pre-registered bar; rule stays |
 | EPS growth ≥ 25% (hard block) | ⬜ | Round 8 ran without it → **Nov 16** |
 | No buys within 14 days of earnings | ⬜ | never tested alone → **Nov 16** (SEC earnings dates downloaded) |
