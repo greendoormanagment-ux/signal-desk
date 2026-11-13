@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16.3</title>
+<title>Signal Desk v2.16.4</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -148,7 +148,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16.3<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.4<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -222,6 +222,7 @@ input,button{font-family:inherit}
     <div class="t-right">
       <div class="t-label">LAST</div>
       <div class="t-price" id="tPrice"></div>
+      <div class="t-chg" id="tChg" style="font-size:11.5px;font-weight:600;margin-top:2px"></div>
       <div class="t-src" id="tSrc"></div>
       <div class="t-gain" id="tGain" style="display:none"></div>
       <div class="t-asof" id="tAsOf"></div>
@@ -426,7 +427,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16.3"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
+const APP_VERSION = "v2.16.4"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2), day move $/% (.4) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -2058,6 +2059,15 @@ const render = (sym, d, rule, ai, mode) => {
   $("tCo").textContent  = d?.name || "";
   $("tSector").textContent = ai?.sector ? (canonSector(ai.sector) + (ai.industry ? " · " + ai.industry : "")) : "";
   $("tPrice").textContent = d ? "$"+fmt(d.price) : "—";
+  { // v2.16.4: today's move in $ and %, plus 5 sessions — information only, no rule uses it
+    const mv = d ? dayMove(d) : null, el = $("tChg");
+    if (mv && mv.chg !== null && d.prevClose > 0) {
+      const dUsd = d.price - d.prevClose, up = dUsd >= 0, col = up ? "var(--green)" : "var(--red)";
+      el.innerHTML = `<span style="color:${col}">${up ? "▲ +" : "▼ −"}$${fmt(Math.abs(dUsd))} (${up ? "+" : ""}${mv.chg}%)</span> today${mv.partial ? " so far" : ""}`
+        + (mv.chg5 !== null ? ` · <span style="color:${mv.chg5 >= 0 ? "var(--green)" : "var(--red)"}">${mv.chg5 >= 0 ? "+" : ""}${mv.chg5}%</span> 5 days` : "")
+        + ` <span style="opacity:.55">· info</span>`;
+    } else el.innerHTML = "";
+  }
   const src = $("tSrc");
   if (d) { src.textContent="● LIVE · TWELVE DATA"; src.style.color="var(--green)"; }
   else   { src.textContent="⚠ WEB DATA — verify price"; src.style.color="var(--amber)"; }
