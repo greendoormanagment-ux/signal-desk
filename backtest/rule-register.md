@@ -47,6 +47,16 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Core SPY + Signal Desk satellite | ⬜ | → **Nov 30** |
 | Next-version package re-tested as one system | ⬜ | before it goes live; final check on held-back 2026 data |
 
+## New ideas to test (added 11/14 — each locked before it runs)
+| Idea | Status | When |
+| --- | --- | --- |
+| Position size by volatility (calmer stocks get more, wild ones less) vs equal dollar risk | ⬜ | → **Nov 30**, with the portfolio test |
+| Add to winners (a second piece once a trade is up 1R or 2R) vs one entry | ⬜ | → **Nov 30**, with the portfolio test |
+| Re-entry after a stop-out (buy back on a new high) on all-US data | ⬜ | → **Nov 23**, with the exit rules (Round 6 tested S&P only) |
+| Sector strength as a ranking input (breakouts in leading sectors first) | ⬜ | → **Nov 23**: written amendment to the ranking pre-registration before it runs, if sector data is available for the universe |
+| Earnings gap as its own entry setup (not a filter on breakouts) | ⬜ | → **Nov 16** (SEC earnings dates) |
+| More chart indicators layered on breakouts | ❌ stop | nine failed for the same reason (Round 8 s2/2b) |
+
 ## App fixes (not rules — next version)
 | Fix | Found | Status |
 | --- | --- | --- |
