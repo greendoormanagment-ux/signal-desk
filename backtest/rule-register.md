@@ -53,12 +53,17 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Watchlist results board (all scanned stocks in one table, best on top) | 11/09 | next version |
 | Tap to reopen any scan without rescanning | 11/09 | next version |
 | Don't repeat SELL HALF after a partial sale is logged | 11/09 | moot since v2.16.3 (no SELL HALF instruction) |
-| Refresh row numbers after I SOLD SOME splits a row | 11/09 | next version |
+| Refresh row numbers after I SOLD SOME splits a row | 11/09 | ✅ done (v2.16.5) |
 | Top verdict vs ACTION box wording conflict (HOLD vs action) | 11/07 | next version |
 | "Check operating EPS" warning when official EPS fails | 11/07 | after the Nov 16 EPS test |
 | Watchlist PAUSE / auto-pause | 11/10 | ✅ done (v2.16.1) |
 | One-tap + WATCHLIST | 11/10 | ✅ done (v2.16.2) |
-| WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | next version |
+| WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | ✅ done (v2.16.5) |
 | App doesn’t know a position was already trimmed (SCALE_OUT keeps prompting) — fix: sheet script returns any closed row with the same ticker + account + entry date (date, shares, reason); app shows “already took profit on [date], the rest rides with the stop” | 11/11 | next version (display only) |
 | Earnings dates not yet announced show as unknown (Alpha Vantage lists only announced dates; ~850 companies between seasons) — fill the gap with an estimate from SEC history (last year’s same-quarter 8-K date), labeled “estimated” | 11/14 | next version |
 | Nightly data check failed 9 nights (11/6–11/14) on a seasonal earnings-count threshold — data was saved every night | 11/14 | ✅ fixed (threshold 300) |
+| App vs backtest parity check (`scripts/backtest/tests/parity_app_vs_engine.py`, results in `app-audit.md`) | 11/14 | ✅ done — price rules and market gate identical on 4,429 stock-days |
+| Row numbers refresh after I SOLD SOME · +20% prompt says "optional" everywhere | 11/14 | ✅ done (v2.16.5) |
+| Position sizing: fixed $ risk, no per-position cap, no position-count limit (backtest: 1% of account, 20% cap, 10 positions) | 11/14 | next version, after the Nov 30 portfolio test |
+| Eligibility check in the app (≥ $5 and ≥ $20M/day, as in the backtests) | 11/14 | next version |
+| AI adjusted EPS overrides official SEC EPS in the 25% rule (backtests used SEC only) | 11/14 | → **Nov 16** EPS test |
