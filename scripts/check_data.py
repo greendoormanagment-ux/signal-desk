@@ -63,7 +63,9 @@ if cal:
     d = cal.get("data", {})
     a = age(cal.get("asOf", ""))
     if a > 3: problems.append(f"earnings.json is {a} days old (asOf {cal.get('asOf')}) - Alpha Vantage may be failing")
-    if len(d) < 2000: problems.append(f"earnings.json has only {len(d)} companies (normally ~4,500)")
+    # Seasonal: Alpha Vantage lists only ANNOUNCED dates, so the count runs ~3,000-4,500 in earnings season and
+    # drops to a few hundred between seasons (e.g. 846 on 2026-11-14). Only a near-empty file is a real problem.
+    if len(d) < 300: problems.append(f"earnings.json has only {len(d)} companies (between seasons a few hundred is normal; in season ~3,000-4,500)")
     past = [s for s, r in d.items() if r[0] < cal.get("asOf", "")]
     if len(past) > max(20, len(d) // 100): problems.append(f"earnings.json: {len(past)} dates already in the past, e.g. {past[:5]}")
     notes.append(f"earnings.json: {len(d)} companies, asOf {cal.get('asOf')}, {len(past)} past dates")
