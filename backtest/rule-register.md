@@ -60,3 +60,5 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | One-tap + WATCHLIST | 11/10 | ✅ done (v2.16.2) |
 | WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | next version |
 | App doesn’t know a position was already trimmed (SCALE_OUT keeps prompting) — fix: sheet script returns any closed row with the same ticker + account + entry date (date, shares, reason); app shows “already took profit on [date], the rest rides with the stop” | 11/11 | next version (display only) |
+| Earnings dates not yet announced show as unknown (Alpha Vantage lists only announced dates; ~850 companies between seasons) — fill the gap with an estimate from SEC history (last year’s same-quarter 8-K date), labeled “estimated” | 11/14 | next version |
+| Nightly data check failed 9 nights (11/6–11/14) on a seasonal earnings-count threshold — data was saved every night | 11/14 | ✅ fixed (threshold 300) |
