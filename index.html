@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16.4</title>
+<title>Signal Desk v2.16.5</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -148,7 +148,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16.4<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.5<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -383,7 +383,7 @@ const META = {
   WATCH:        { label:"WATCH",        color:"#8FB6DA", word:"Near pivot — set an alert, buy only on a volume breakout" },
   SELL:         { label:"SELL",         color:"#E5484D", word:"Exit / avoid" },
   HOLD:         { label:"HOLD",         color:"#2FBF71", word:"Trend intact — trail your stop" },
-  SCALE_OUT:    { label:"SCALE OUT",    color:"#8FB6DA", word:"Take partial profits" },
+  SCALE_OUT:    { label:"UP 20%+",      color:"#8FB6DA", word:"Optional trim — holding is fine" },
   TIGHTEN_STOP: { label:"TIGHTEN STOP", color:"#E8A33D", word:"Warning — raise the stop" },
   SELL_ALL:     { label:"SELL ALL",     color:"#E5484D", word:"Sell rule triggered — exit now" },
   NO_DATA:      { label:"NO PRICE",     color:"#F2C14E", word:"No live price — no call made. Rescan" },
@@ -427,7 +427,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16.4"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2), day move $/% (.4) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
+const APP_VERSION = "v2.16.5"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2), day move $/% (.4) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -703,7 +703,7 @@ const drawSold = (sym, price) => {
       $("soldMsg").innerHTML = `<b style="color:#30A46C">✓ Saved.</b> ${j.sold} sh sold @ $${fmt(px)}` + (j.remaining > 0
         ? ` — ${j.remaining} sh still open (row ${j.openRow}), closed part on row ${j.closedRow}.<br><b>Now change your stop order at the broker to ${j.remaining} shares.</b>`
         : ` — position closed (row ${j.closedRow}). <b>Cancel the stop order at the broker.</b>`);
-      window.openTrades = null; lastFilledSym = ""; try { loadOpenTrades(); } catch (e) {}
+      window.openTrades = null; lastFilledSym = ""; try { await loadOpenTrades(); await fillFromSheet(true); } catch (e) {} // v2.16.5: reload rows — a split shifts row numbers
     } catch (e) { $("soldMsg").innerHTML = "Couldn't reach the sheet (update the sheet script?). Nothing was changed."; $("soldGo").disabled = false; }
   };
 };
@@ -1974,7 +1974,7 @@ const buildGuide = (sym, d, rule, ai, mode) => {
       else L.push(`Keep your existing stop. Don't raise it above today's price.`);
       L.push(`Never move a stop down. Exit if it closes below the 50-day on heavy volume or hits your stop.`);
     }
-    else if (st==="SCALE_OUT") { L.push(`<b>Take partial profits</b> — sell part of the position (commonly a third to a half).`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale with <b>I SOLD SOME</b> below — it updates your Trades sheet.`); }
+    else if (st==="SCALE_OUT") { L.push(`<b>Optional:</b> take partial profits (a third to a half) — or keep the full position. The +20% rule is untested, and the trims tested so far lowered results, so letting it run is fine.`); if (stopAdvice()) L.push(`On the shares you keep: ${stopAdvice()}`); else if (stop) L.push(`Raise the stop on the rest to <b>$${fmt(stop)}</b>.`); L.push(`Log the sale with <b>I SOLD SOME</b> below — it updates your Trades sheet.`); }
     else if (st==="NO_DATA") { L.push(`<b>No live price came back</b> — the app makes no sell/hold call without one. Your stop order at the broker still protects you. Check your Twelve Data key (Setup) and rescan.`); }
     else { L.push(`<b>Exit.</b> ${rule.sellReason||"The sell rule triggered."}`); L.push(`Log it with <b>I SOLD SOME</b> below (ALL, your fill price) — it closes the Trades row for you, and P/L calculates itself.`); }
   }
