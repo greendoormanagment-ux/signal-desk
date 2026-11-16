@@ -55,6 +55,7 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Re-entry after a stop-out (buy back on a new high) on all-US data | ⬜ | → **Nov 23**, with the exit rules (Round 6 tested S&P only) |
 | Sector strength as a ranking input (breakouts in leading sectors first) | ⬜ | → **Nov 23**: written amendment to the ranking pre-registration before it runs, if sector data is available for the universe |
 | Earnings gap as its own entry setup (not a filter on breakouts) | ❌ live stop · 🟡 original stop | `round8f-latest.md` (11/16): about 0R with the A2 trail; +1.2R per trade with the original stop but mixed portfolio → re-test with the next-version package |
+| Stricter pullback entry (50-day rising + the pullback has stopped, e.g. a close back above the prior day's high on lighter selling) vs breakouts only | ⬜ | → **Nov 30**: pullbacks are paused, not banned — the loose version (within 3% of the 50-day) was not proven in Round 8 s1; this stricter one never had a fair test (Fix List #31) |
 | More chart indicators layered on breakouts | ❌ stop | nine failed for the same reason (Round 8 s2/2b) |
 
 ## App fixes (not rules — next version)
