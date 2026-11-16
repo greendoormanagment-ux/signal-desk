@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal Desk v2.16.5</title>
+<title>Signal Desk v2.16.6</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0C1218">
@@ -148,7 +148,7 @@ input,button{font-family:inherit}
 <div class="hd">
   <div class="mark">▮▯</div>
   <div>
-    <h1>SIGNAL DESK <span class="ver">v2.16.5<span id="verDate"></span></span></h1>
+    <h1>SIGNAL DESK <span class="ver">v2.16.6<span id="verDate"></span></span></h1>
     <div class="sub">deterministic rule engine · O'Neil / Weinstein / chandelier · live data</div>
   </div>
 </div>
@@ -427,7 +427,7 @@ const updateLogCount = () => { $("logCount").textContent = scanLog.length + " sc
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbyBAcSTJWIsZE6yeIDwMIXgT-osbQXYFMbwZ0zB2NvrEV9g61N4phFHnuZAfis57NyUew/exec";
 // v2.9.5: the sheet key is no longer in this public file — it is saved on each device via the setup bar
 let SHEET_KEY = (()=>{ try { return localStorage.getItem("sd2-skey") || ""; } catch(e) { return ""; } })();
-const APP_VERSION = "v2.16.5"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2), day move $/% (.4) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
+const APP_VERSION = "v2.16.6"; // v2.16 rules · display additions: watchlist PAUSE (.1), + WATCHLIST (.2), day move $/% (.4), sector under the name (.6) · AMENDMENT 11/11 (.3): warning-sign / earnings sell-half and warning stop-raise are info only (backtest round8d)
 // v2.9.1: one shared day count for earnings (rule, log and briefing all use the same math — Fix #40)
 const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 864e5);
 // v2.10: HOLDING HEALTH — are the original buy reasons still intact? Logged for the day-30 review and the backtest.
@@ -440,6 +440,14 @@ const daysUntil = (ymd) => Math.ceil((new Date(ymd+"T16:00:00") - new Date()) / 
 //  · Closing strength (10 sessions): where it closes within the day's range (1 = at the high)
 //  · Volume dry-up: 10-day ÷ 50-day average volume (quiet = sellers gone)
 //  · Biggest-volume day (50 sessions): up or down?
+let __sect = null; // v2.16.6: sectors.json (built nightly from Nasdaq's stock screener) — display only, shown when the AI check didn't run
+const sectorLine = async (sym) => {
+  try {
+    if (!__sect) { const r = await fetch("sectors.json?d=" + new Date().toISOString().slice(0,10)); if (!r.ok) return; __sect = (await r.json()).data || {}; }
+    const x = __sect[String(sym).toUpperCase().replace(/[\/-]/g, ".")];
+    if (x && $("tSym").textContent === sym && !$("tSector").textContent) $("tSector").textContent = x.filter(Boolean).join(" · ");
+  } catch(e) {}
+};
 let __foot = null; // v2.12: footprints.json (built nightly: FINRA short interest, SEC Form 4 insider trades, estimate revisions)
 const fetchFootprints = async (sym) => {
   try {
@@ -2058,6 +2066,7 @@ const render = (sym, d, rule, ai, mode) => {
   $("tSym").textContent = sym;
   $("tCo").textContent  = d?.name || "";
   $("tSector").textContent = ai?.sector ? (canonSector(ai.sector) + (ai.industry ? " · " + ai.industry : "")) : "";
+  if (!ai?.sector) sectorLine(sym); // v2.16.6: no AI check → sector from sectors.json
   $("tPrice").textContent = d ? "$"+fmt(d.price) : "—";
   { // v2.16.4: today's move in $ and %, plus 5 sessions — information only, no rule uses it
     const mv = d ? dayMove(d) : null, el = $("tChg");
