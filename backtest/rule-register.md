@@ -10,14 +10,14 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Rule (live v2.16.3) | Status | Evidence / next test |
 | --- | --- | --- |
 | Breakouts only (close above the 52-week pivot) | 🟡 | Round 8 s1: better in S&P, slightly worse outside; intervals overlap |
-| Breakout volume ≥ 1.4× average | ⬜ | never varied (Fix #35) → **Nov 16** |
-| Max 5% above the pivot | ⬜ | never varied → **Nov 16** |
+| Breakout volume ≥ 1.4× average | ✅ | `round8f-latest.md` (11/16): 1.2 / 1.4 / 1.6 / 2.0× tested — no challenger beats 1.4× in both periods; stays |
+| Max 5% above the pivot | ✅ | `round8f-latest.md` (11/16): 3 / 5 / 8% tested — no challenger beats 5% in both periods; stays |
 | Market gate: no buys in CORRECTION | 🟡 | used in every backtest as the base; stricter gates not confirmed (Round 8 s1) |
 | Market gate DEFINITION (SPY + QQQ vs their 50-day lines, 5+ distribution days in 25 sessions, 5% expiry, both indexes must agree) | ⬜ | inherited from O’Neil, never varied → **Nov 30**: compare with slower/faster versions (e.g. 200-day based, 3 vs 5 distribution days, SPY only) |
 | Real money only in UPTREND (PRESSURE = paper only) | 🟡 | `round8e-latest.md` (11/11): UPTREND-only had the higher return in all 4 comparisons (+0.7 to +4.1 pts/yr); drawdowns mixed → inconclusive by the pre-registered bar; rule stays |
-| EPS growth ≥ 25% (hard block) | ⬜ | Round 8 ran without it → **Nov 16** |
-| No buys within 14 days of earnings | ⬜ | never tested alone → **Nov 16** (SEC earnings dates downloaded) |
-| 24-hour rule (rescan tomorrow, then buy) | ⬜ | backtests buy the next open → **Nov 16** |
+| EPS growth ≥ 25% (hard block) | 🟡 | `round8f-latest.md` (11/16): pass and fail trades earn the same R (no harm shown; sales and operating income no better) → next version: information only, or a ranking input (**Nov 23** ranking test) |
+| No buys within 14 days of earnings | 🟡 | `round8f-latest.md` (11/16): no difference inside vs outside the window (7 / 14 / 21 days) → next version: candidate for information only |
+| 24-hour rule (rescan tomorrow, then buy) | 🟡 / ❌ | `round8f-latest.md` (11/16): same R per trade, lower portfolio return in all 4 comparisons; HURTS with the original stop → next version: optional, drop if the original stop is adopted |
 | Sector / theme crowding ("consider skipping") | ⬜ | → **Nov 23** |
 | 100-point score | ❌ | no predictive power (day-30 corr 0.06) → replaced by the ranking test |
 | Footprints, trend filters (21-day, momentum, drift) | ℹ️ | Round 8 s2/2b: none adds value — information only |
@@ -54,7 +54,7 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Add to winners (a second piece once a trade is up 1R or 2R) vs one entry | ⬜ | → **Nov 30**, with the portfolio test |
 | Re-entry after a stop-out (buy back on a new high) on all-US data | ⬜ | → **Nov 23**, with the exit rules (Round 6 tested S&P only) |
 | Sector strength as a ranking input (breakouts in leading sectors first) | ⬜ | → **Nov 23**: written amendment to the ranking pre-registration before it runs, if sector data is available for the universe |
-| Earnings gap as its own entry setup (not a filter on breakouts) | ⬜ | → **Nov 16** (SEC earnings dates) |
+| Earnings gap as its own entry setup (not a filter on breakouts) | ❌ live stop · 🟡 original stop | `round8f-latest.md` (11/16): about 0R with the A2 trail; +1.2R per trade with the original stop but mixed portfolio → re-test with the next-version package |
 | More chart indicators layered on breakouts | ❌ stop | nine failed for the same reason (Round 8 s2/2b) |
 
 ## App fixes (not rules — next version)
@@ -65,7 +65,7 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Don't repeat SELL HALF after a partial sale is logged | 11/09 | moot since v2.16.3 (no SELL HALF instruction) |
 | Refresh row numbers after I SOLD SOME splits a row | 11/09 | ✅ done (v2.16.5) |
 | Top verdict vs ACTION box wording conflict (HOLD vs action) | 11/07 | next version |
-| "Check operating EPS" warning when official EPS fails | 11/07 | after the Nov 16 EPS test |
+| "Check operating EPS" warning when official EPS fails | 11/07 | dropped — operating income separates trades no better than official EPS (`round8f-latest.md`) |
 | Watchlist PAUSE / auto-pause | 11/10 | ✅ done (v2.16.1) |
 | One-tap + WATCHLIST | 11/10 | ✅ done (v2.16.2) |
 | WHAT TO DO NOW says "take partial profits" without "optional" (ACTION box says optional) — make them match | 11/11 | ✅ done (v2.16.5) |
@@ -76,4 +76,4 @@ Status: ✅ supported by a test · ❌ test says it hurts (removed or to remove)
 | Row numbers refresh after I SOLD SOME · +20% prompt says "optional" everywhere | 11/14 | ✅ done (v2.16.5) |
 | Position sizing: fixed $ risk, no per-position cap, no position-count limit (backtest: 1% of account, 20% cap, 10 positions) | 11/14 | next version, after the Nov 30 portfolio test |
 | Eligibility check in the app (≥ $5 and ≥ $20M/day, as in the backtests) | 11/14 | next version |
-| AI adjusted EPS overrides official SEC EPS in the 25% rule (backtests used SEC only) | 11/14 | → **Nov 16** EPS test |
+| AI adjusted EPS overrides official SEC EPS in the 25% rule (backtests used SEC only) | 11/14 | cannot be backtested (no history) — moot if the EPS rule becomes information only |
